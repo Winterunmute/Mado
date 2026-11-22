@@ -1,0 +1,32 @@
+.app {
+  padding-top: 36px;
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  background: var(--bg-primary);
+  overflow: hidden;
+}
+
+.app-titlebar { position: fixed; inset: 0 0 auto; height: 36px; padding: 0 16px; display: flex; align-items: center; gap: 16px; background: var(--bg-tertiary); color: var(--text-secondary); font-size: 12px; -webkit-app-region: drag; }
+.app-titlebar span { color: var(--text-muted); }
+
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: row;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.main-area > *:first-child {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+
+.messenger-space {
+  flex: 0 0 auto;
+  min-width: 0;
+}

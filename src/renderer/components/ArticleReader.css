@@ -1,0 +1,39 @@
+.article-reader { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; container: reader / inline-size; }
+.reader-toolbar { flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; padding: 12px 20px; background: var(--bg-secondary); border-bottom: 1px solid var(--border-primary); }
+.reader-toolbar .btn { font-size: 13px; padding: 8px 12px; }
+.reader-scroll { flex: 1; overflow-y: auto; min-height: 0; overscroll-behavior: contain; }
+.reader-page { max-width: 760px; margin: 0 auto; padding: 32px 36px 64px; overflow-wrap: anywhere; }
+.reader-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 12px; color: var(--text-secondary); margin-bottom: 16px; }
+.reader-meta > span { color: var(--accent-primary); font-weight: 600; }
+.reader-page > h1 { font-size: clamp(25px, 3vw, 34px); line-height: 1.25; letter-spacing: -0.025em; margin-bottom: 16px; text-wrap: pretty; }
+.reader-page > h1:focus { outline: none; }
+.reader-byline { font-size: 14px; color: var(--text-secondary); margin-bottom: 8px; }
+.reader-original { display: block; font-size: 12px; overflow-wrap: anywhere; margin-bottom: 24px; }
+.reader-loading { display: flex; align-items: center; gap: 12px; padding: 24px 0; color: var(--text-secondary); }
+.reader-notice { display: flex; gap: 10px; align-items: flex-start; padding: 14px 16px; margin: 20px 0 28px; border: 1px solid var(--border-secondary); border-radius: var(--radius-md); background: var(--bg-tertiary); color: var(--text-secondary); font-size: 13px; line-height: 1.65; }
+.reader-notice svg { flex-shrink: 0; margin-top: 2px; color: var(--accent-primary); }
+.reader-body { font-family: Georgia, 'Times New Roman', serif; font-size: 18px; line-height: 1.85; color: var(--text-primary); }
+.reader-body p, .reader-body ul, .reader-body ol, .reader-body blockquote, .reader-body figure, .reader-body pre, .reader-body table { margin: 0 0 1.25em; }
+.reader-body h1, .reader-body h2, .reader-body h3, .reader-body h4, .reader-body h5, .reader-body h6 { font-family: 'Inter', 'Segoe UI', sans-serif; line-height: 1.35; margin: 1.5em 0 0.65em; }
+.reader-body h1, .reader-body h2 { font-size: 1.4em; }
+.reader-body h3 { font-size: 1.15em; }
+.reader-body ul, .reader-body ol { padding-left: 1.5em; }
+.reader-body li { margin-bottom: 0.4em; }
+.reader-body img { display: block; width: auto; max-width: 100%; height: auto; max-height: 650px; object-fit: contain; margin: 1.5em auto; border-radius: var(--radius-sm); background: var(--bg-tertiary); }
+.reader-body figcaption { font: 13px/1.6 'Segoe UI', sans-serif; color: var(--text-secondary); }
+.reader-body blockquote { border-left: 3px solid var(--accent-primary); padding-left: 1em; color: var(--text-secondary); }
+.reader-body pre { padding: 16px; overflow-x: auto; font-size: 14px; background: var(--bg-tertiary); border-radius: var(--radius-sm); }
+.reader-body code { font-size: 0.85em; }
+.reader-body table { display: block; overflow-x: auto; max-width: 100%; border-collapse: collapse; font-size: 15px; }
+.reader-body th, .reader-body td { padding: 8px 12px; border: 1px solid var(--border-primary); }
+.reader-body a { text-decoration: underline; text-underline-offset: 3px; }
+.reader-body hr { border: 0; border-top: 1px solid var(--border-primary); margin: 2em 0; }
+.reader-footer { border-top: 1px solid var(--border-primary); padding-top: 24px; margin-top: 36px; font-size: 12px; color: var(--text-secondary); }
+.reader-footer button { display: inline-flex; gap: 5px; align-items: center; color: var(--accent-primary); font-size: inherit; }
+@container reader (max-width: 480px) { .reader-page { padding: 24px 20px 48px; } .reader-body { font-size: 17px; } .reader-toolbar { padding: 10px 12px; } }
+
+.video-view { display: flex; flex-direction: column; align-items: flex-start; gap: 16px; margin: 16px 0 32px; }
+.video-view img { width: 100%; max-width: 640px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius-md); background: var(--bg-tertiary); }
+.video-view p { font-size: 14px; color: var(--text-secondary); line-height: 1.6; }
+.video-view .btn { display: inline-flex; align-items: center; gap: 8px; }
+.reader-discussion { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 24px; padding: 8px 12px; border: 1px solid var(--border-primary); border-radius: var(--radius-sm); background: var(--bg-tertiary); color: var(--accent-primary); font-size: 13px; }
