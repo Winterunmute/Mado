@@ -43,7 +43,7 @@ export default function Settings() {
   } = useSettings()
 
   const handleResetData = async () => {
-    if (!confirm('This removes all subscriptions, conversation tabs, read history, window state and preferences. Your Facebook Messenger session is kept. Continue?')) return
+    if (!confirm('This removes all subscriptions, categories, saved items, custom feeds, conversation tabs, read history, window state and preferences. Your Facebook Messenger session is kept. Continue?')) return
     if (!confirm('This action cannot be undone. Please confirm again.')) return
     
     try {
@@ -309,7 +309,7 @@ export default function Settings() {
             <div className="about-logo">
               <span>窓</span>
             </div>
-            <h3>Mado v0.6.0</h3>
+            <h3>Mado v0.7.0</h3>
             <p className="about-tagline">Your window to the world.</p>
             <p className="about-desc">
               A personal desktop application combining curated RSS feeds with Facebook Messenger.

@@ -11,6 +11,7 @@ export interface SourceSubscription {
   lastFetched: string | null
   lastError: string | null
   metadata?: Record<string, string>
+  categoryIds: string[]
 }
 
 export interface ContentItem {
@@ -79,6 +80,9 @@ export function normalizeSources(value: unknown, defaults: SourceSubscription[])
       enabled: item.enabled !== false,
       lastFetched: typeof item.lastFetched === 'string' ? item.lastFetched : null,
       lastError: typeof item.lastError === 'string' ? item.lastError : null,
+      categoryIds: Array.isArray(item.categoryIds)
+        ? [...new Set(item.categoryIds.filter((value: unknown): value is string => typeof value === 'string' && !!value.trim()).map((value: string) => value.trim()))].slice(0, 50)
+        : [],
       ...(item.metadata && typeof item.metadata === 'object'
         ? { metadata: Object.fromEntries(Object.entries(item.metadata).filter(([key, value]) => typeof key === 'string' && typeof value === 'string')) as Record<string, string> }
         : {}),

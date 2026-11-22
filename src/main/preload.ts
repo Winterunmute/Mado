@@ -78,6 +78,31 @@ contextBridge.exposeInMainWorld('electronAPI', {
     get: () => ipcRenderer.invoke('messenger-tabs:get'),
     save: (tabs: any) => ipcRenderer.invoke('messenger-tabs:save', tabs),
   },
+  categories: {
+    get: () => ipcRenderer.invoke('categories:get'),
+    create: (name: string) => ipcRenderer.invoke('categories:create', name),
+    rename: (id: string, name: string) => ipcRenderer.invoke('categories:rename', id, name),
+    remove: (id: string) => ipcRenderer.invoke('categories:delete', id),
+    assign: (url: string, ids: string[]) => ipcRenderer.invoke('categories:assign', url, ids),
+  },
+  saved: {
+    get: () => ipcRenderer.invoke('saved:get'),
+    save: (item: any) => ipcRenderer.invoke('saved:save', item),
+    unsave: (key: string) => ipcRenderer.invoke('saved:unsave', key),
+  },
+  views: {
+    get: () => ipcRenderer.invoke('views:get'),
+    create: (value: any) => ipcRenderer.invoke('views:create', value),
+    update: (id: string, value: any) => ipcRenderer.invoke('views:update', id, value),
+    remove: (id: string) => ipcRenderer.invoke('views:delete', id),
+  },
+  sources: {
+    discover: (input: string) => ipcRenderer.invoke('sources:discover', input),
+  },
+  opml: {
+    import: () => ipcRenderer.invoke('opml:import'),
+    export: () => ipcRenderer.invoke('opml:export'),
+  },
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
   },

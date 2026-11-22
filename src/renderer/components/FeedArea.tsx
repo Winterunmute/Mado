@@ -7,11 +7,14 @@ import {
   Loader2, 
   ChevronDown,
   Search,
-  X
+  X,
+  SlidersHorizontal,
+  Bookmark,
+  Layers
 } from 'lucide-react'
 import { classNames } from '../lib/utils'
-import { selectArticles } from '../lib/article-filter'
-import type { Article, SourceType } from '../types'
+import { selectArticlesWithOptions, hasActiveFilters } from '../lib/article-filter'
+import type { Article, ContentType, SourceType } from '../types'
 import { useArticles, useSettings, useFeedActions, useStore } from '../hooks/useStore'
 import ArticleCard from './ArticleCard'
 import ArticleReader from './ArticleReader'
@@ -20,11 +23,16 @@ import './FeedArea.css'
 export default function FeedArea() {
   const { articles, loading, error, refetch, setFilter, filter, setSearchQuery, searchQuery } = useArticles()
   const { feedDensity, setFeedDensity } = useSettings()
-  const { addFeed, removeFeed, toggleFeed, refreshFeeds, feeds } = useFeedActions()
-  const { markAllRead, markRead } = useStore()
+  const { feeds } = useFeedActions()
+  const store = useStore()
+  const { markAllRead, markRead, categories, views, settings, contentTypeFilter } = store
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
-  const [sourceTypeFilter, setSourceTypeFilter] = useState<SourceType | 'all'>('all')
-  const [sourceFilter, setSourceFilter] = useState('all')
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const sourceTypeFilter = (settings.feedSourceTypeFilter || 'all') as SourceType | 'all'
+  const sourceFilter = settings.feedSourceFilter || 'all'
+  const categoryFilter = settings.feedCategoryFilter || 'all'
+  const viewId = settings.feedViewId || 'all'
+  const activeView = views.find(view => view.id === viewId) || null
   const feedRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const scrollPosition = useRef(0)
@@ -46,7 +54,19 @@ export default function FeedArea() {
   const openSources = () => window.dispatchEvent(new CustomEvent('open-feed-manager'))
   const [showDensityMenu, setShowDensityMenu] = useState(false)
 
-  const filteredArticles = selectArticles(articles, filter, searchQuery, sourceTypeFilter, sourceFilter)
+  const filterOptions = {
+    mode: filter,
+    query: searchQuery,
+    categoryId: categoryFilter,
+    sourceType: sourceTypeFilter,
+    sourceId: sourceFilter,
+    contentType: contentTypeFilter,
+    dateFrom: settings.feedDateFrom,
+    dateTo: settings.feedDateTo,
+    view: activeView,
+  }
+  const filteredArticles = selectArticlesWithOptions(articles, filterOptions)
+  const filtersActive = hasActiveFilters(filterOptions)
 
   const handleRefresh = useCallback(async () => {
     await refetch()
@@ -110,9 +130,28 @@ export default function FeedArea() {
           </div>
           <div className="source-filters">
             <select
+              aria-label="Select feed view"
+              value={viewId}
+              onChange={e => store.setFeedViewId(e.target.value)}
+              className="source-filter-select"
+            >
+              <option value="all">All feed</option>
+              <option value="saved">Saved</option>
+              {views.map(view => <option key={view.id} value={view.id}>{view.name}</option>)}
+            </select>
+            <button
+              className={classNames('advanced-btn', showAdvanced && 'active', filtersActive && 'filtered')}
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              aria-expanded={showAdvanced}
+              aria-label="Advanced filters"
+              title="Advanced filters"
+            >
+              <SlidersHorizontal size={16} aria-hidden="true" />
+            </button>
+            <select
               aria-label="Filter by source type"
               value={sourceTypeFilter}
-              onChange={e => { setSourceTypeFilter(e.target.value as SourceType | 'all'); setSourceFilter('all') }}
+              onChange={e => { store.setSourceTypeFilter(e.target.value as SourceType | 'all'); store.setSourceFilter('all') }}
               className="source-filter-select"
             >
               <option value="all">All types</option>
@@ -123,7 +162,7 @@ export default function FeedArea() {
             <select
               aria-label="Filter by source"
               value={sourceFilter}
-              onChange={e => setSourceFilter(e.target.value)}
+              onChange={e => store.setSourceFilter(e.target.value)}
               className="source-filter-select"
             >
               <option value="all">All sources</option>
@@ -139,6 +178,15 @@ export default function FeedArea() {
             >
               <Filter size={16} aria-hidden="true" />
               <span>{filter === 'unread' ? 'Unread' : 'All'}</span>
+            </button>
+            <button
+              className={classNames('saved-filter-btn', filter === 'saved' && 'active')}
+              onClick={() => setFilter(filter === 'saved' ? 'all' : 'saved')}
+              aria-label="Show saved items"
+              aria-pressed={filter === 'saved'}
+            >
+              <Bookmark size={16} aria-hidden="true" />
+              <span>Saved</span>
             </button>
             <button
               className="density-btn"
@@ -193,6 +241,49 @@ export default function FeedArea() {
         </div>
       </header>
 
+      {showAdvanced && !selectedArticle && (
+        <div className="advanced-filters" role="group" aria-label="Advanced filters">
+          <select
+            aria-label="Filter by category"
+            value={categoryFilter}
+            onChange={e => store.setCategoryFilter(e.target.value)}
+          >
+            <option value="all">All categories</option>
+            {categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+          <select
+            aria-label="Filter by content type"
+            value={contentTypeFilter}
+            onChange={e => store.setContentTypeFilter(e.target.value as ContentType | 'all')}
+          >
+            <option value="all">All content</option>
+            <option value="article">Articles</option>
+            <option value="video">Videos</option>
+            <option value="post">Posts</option>
+            <option value="image">Images</option>
+            <option value="link">Links</option>
+          </select>
+          <label>From <input type="date" aria-label="Published from" value={settings.feedDateFrom} onChange={e => store.setDateRange(e.target.value, settings.feedDateTo)} /></label>
+          <label>To <input type="date" aria-label="Published to" value={settings.feedDateTo} onChange={e => store.setDateRange(settings.feedDateFrom, e.target.value)} /></label>
+          <button className="clear-filters" onClick={store.clearFilters} disabled={!filtersActive}>Clear Filters</button>
+        </div>
+      )}
+      {filtersActive && !selectedArticle && (
+        <div className="active-filters" aria-label="Active filters">
+          {viewId === 'saved' && <span className="filter-chip"><Bookmark size={11} /> Saved</span>}
+          {activeView && <span className="filter-chip"><Layers size={11} /> {activeView.name}</span>}
+          {filter !== 'all' && <span className="filter-chip">{filter === 'unread' ? 'Unread' : 'Saved'}</span>}
+          {categoryFilter !== 'all' && <span className="filter-chip">{categories.find(c => c.id === categoryFilter)?.name || 'Category'}</span>}
+          {sourceTypeFilter !== 'all' && <span className="filter-chip">{sourceTypeFilter}</span>}
+          {sourceFilter !== 'all' && <span className="filter-chip">{feeds.find(f => (f.id || f.url) === sourceFilter)?.title || 'Source'}</span>}
+          {contentTypeFilter !== 'all' && <span className="filter-chip">{contentTypeFilter}</span>}
+          {settings.feedDateFrom && <span className="filter-chip">From {settings.feedDateFrom}</span>}
+          {settings.feedDateTo && <span className="filter-chip">To {settings.feedDateTo}</span>}
+          {searchQuery && <span className="filter-chip">“{searchQuery}”</span>}
+          <button onClick={store.clearFilters}>Clear all</button>
+        </div>
+      )}
+
       {error && !selectedArticle && (
         <div className="feed-error" role="alert">
           <span>{error}</span>
@@ -211,8 +302,9 @@ export default function FeedArea() {
             <div className="empty-icon">
               <Filter size={48} aria-hidden="true" />
             </div>
-            <h2>No articles found</h2>
-            <p>{searchQuery ? 'Try a different search term' : filter === 'unread' && feeds.length ? 'You’re caught up. Switch to All to revisit read articles.' : 'Enable or add RSS sources to get started'}</p>
+            <h2>No content found</h2>
+            <p>{filtersActive ? 'No items match these filters. Try clearing them or choosing another view.' : searchQuery ? 'Try a different search term' : filter === 'unread' && feeds.length ? 'You’re caught up. Switch to All to revisit read articles.' : 'Enable or add sources to get started'}</p>
+            {filtersActive && <button className="add-first-feed" onClick={store.clearFilters}>Clear Filters</button>}
             {!searchQuery && feeds.length === 0 && (
               <button className="add-first-feed" onClick={openSources}>
                 Add your first feed

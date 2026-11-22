@@ -1,6 +1,6 @@
 {
   "name": "mado",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Mado (窓) - Your window to the world. A personal desktop app combining RSS feeds and Facebook Messenger.",
   "type": "module",
   "main": "dist/main/index.js",

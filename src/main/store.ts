@@ -4,6 +4,9 @@ import { app } from 'electron'
 import { sanitizeConversationTabs, type ConversationTab } from './conversation-tabs.js'
 import { sanitizeWindowState, DEFAULT_WINDOW_STATE, type WindowState } from './window-state.js'
 import { normalizeSources, sourceId, type SourceSubscription, type SourceType } from './sources/model.js'
+import { categoryId, normalizeCategories, sanitizeCategoryName, type Category } from './organize/categories.js'
+import { normalizeSavedItem, normalizeSavedMap, savedKey, toSavedItem, type SavedItem } from './organize/saved.js'
+import { normalizeViews, sanitizeViewName, viewId, type CustomFeedView } from './organize/views.js'
 
 type Feed = SourceSubscription
 
@@ -47,6 +50,13 @@ const defaultSettings: Settings = {
   closeToTray: false,
   startMinimized: false,
   messengerNotifications: false,
+  feedViewId: 'all',
+  feedFilterMode: 'all',
+  feedCategoryFilter: 'all',
+  feedSourceTypeFilter: 'all',
+  feedSourceFilter: 'all',
+  feedDateFrom: '',
+  feedDateTo: '',
 }
 
 const feedStore = new Store<Record<string, any>>({
@@ -79,12 +89,30 @@ const windowStateStore = new Store<Record<string, any>>({
   cwd: join(app.getPath('userData'), 'mado'),
 })
 
+const categoryStore = new Store<Record<string, any>>({
+  name: 'categories',
+  defaults: { version: 1, categories: [] },
+  cwd: join(app.getPath('userData'), 'mado'),
+})
+
+const savedStore = new Store<Record<string, any>>({
+  name: 'saved',
+  defaults: { version: 1, items: {} },
+  cwd: join(app.getPath('userData'), 'mado'),
+})
+
+const viewStore = new Store<Record<string, any>>({
+  name: 'feed-views',
+  defaults: { version: 1, views: [] },
+  cwd: join(app.getPath('userData'), 'mado'),
+})
+
 export async function readFeeds(): Promise<Feed[]> {
   return normalizeSources(feedStore.get('feeds'), defaultFeeds)
 }
 
 export async function writeFeeds(feeds: Feed[]): Promise<void> {
-  feedStore.set('feeds', { version: 2, feeds })
+  feedStore.set('feeds', { version: 3, feeds })
 }
 
 export async function readReadState(): Promise<ReadState> {
@@ -137,6 +165,8 @@ export const ALLOWED_SETTING_KEYS = [
   'theme', 'feedDensity', 'messengerWidth', 'messengerVisible',
   'autoRefreshInterval', 'showReadArticles', 'trayEnabled',
   'closeToTray', 'startMinimized', 'messengerNotifications',
+  'feedViewId', 'feedFilterMode', 'feedCategoryFilter', 'feedSourceTypeFilter',
+  'feedSourceFilter', 'feedDateFrom', 'feedDateTo',
 ] as const
 
 export function isAllowedSettingKey(key: string): boolean {
@@ -145,9 +175,113 @@ export function isAllowedSettingKey(key: string): boolean {
 
 // Resets local app data only. The persist:messenger partition is untouched.
 export async function resetApplicationData(): Promise<void> {
-  feedStore.set('feeds', { version: 2, feeds: defaultFeeds })
+  feedStore.set('feeds', { version: 3, feeds: defaultFeeds })
   readStateStore.set('state', {})
   settingsStore.set('settings', defaultSettings)
   conversationTabStore.set('tabs', [])
   windowStateStore.set('state', DEFAULT_WINDOW_STATE)
+  categoryStore.set('categories', { version: 1, categories: [] })
+  savedStore.set('items', { version: 1, items: {} })
+  viewStore.set('views', { version: 1, views: [] })
+}
+
+export async function readCategories(): Promise<Category[]> {
+  return normalizeCategories(categoryStore.get('categories'))
+}
+
+function writeCategories(categories: Category[]): Category[] {
+  const cleaned = normalizeCategories(categories)
+  categoryStore.set('categories', { version: 1, categories: cleaned })
+  return cleaned
+}
+
+export async function createCategory(name: unknown): Promise<{ categories: Category[]; category: Category | null }> {
+  const clean = sanitizeCategoryName(name)
+  if (!clean) return { categories: await readCategories(), category: null }
+  const categories = await readCategories()
+  const existing = categories.find(category => category.name.toLowerCase() === clean.toLowerCase())
+  if (existing) return { categories, category: existing }
+  const category = { id: categoryId(clean), name: clean }
+  return { categories: writeCategories([...categories, category]), category }
+}
+
+export async function renameCategory(id: string, name: unknown): Promise<Category[]> {
+  const clean = sanitizeCategoryName(name)
+  const categories = await readCategories()
+  if (!clean) return categories
+  return writeCategories(categories.map(category => category.id === id ? { ...category, name: clean } : category))
+}
+
+export async function deleteCategory(id: string): Promise<{ categories: Category[]; feeds: Feed[] }> {
+  const categories = writeCategories((await readCategories()).filter(category => category.id !== id))
+  const feeds = (await readFeeds()).map(feed => ({ ...feed, categoryIds: feed.categoryIds.filter(value => value !== id) }))
+  await writeFeeds(feeds)
+  return { categories, feeds }
+}
+
+export async function assignCategories(url: string, ids: unknown): Promise<Feed[]> {
+  const valid = new Set((await readCategories()).map(category => category.id))
+  const categoryIds = Array.isArray(ids)
+    ? [...new Set(ids.filter((id): id is string => typeof id === 'string' && valid.has(id)))]
+    : []
+  const feeds = (await readFeeds()).map(feed => feed.url === url || feed.id === url ? { ...feed, categoryIds } : feed)
+  await writeFeeds(feeds)
+  return feeds
+}
+
+export async function readSaved(): Promise<Record<string, SavedItem>> {
+  return normalizeSavedMap(savedStore.get('items'))
+}
+
+export async function saveContent(value: unknown): Promise<SavedItem | null> {
+  const item = toSavedItem(value as any)
+  if (!item) return null
+  const saved = readSavedRaw()
+  saved[savedKey(item)] = item
+  savedStore.set('items', { version: 1, items: saved })
+  return item
+}
+
+function readSavedRaw(): Record<string, SavedItem> {
+  const raw = savedStore.get('items') as any
+  return raw?.items && typeof raw.items === 'object' ? normalizeSavedMap(raw) : {}
+}
+
+export async function unsaveContent(key: string): Promise<Record<string, SavedItem>> {
+  const saved = readSavedRaw()
+  delete saved[key]
+  savedStore.set('items', { version: 1, items: saved })
+  return saved
+}
+
+export async function readViews(): Promise<CustomFeedView[]> {
+  return normalizeViews(viewStore.get('views'))
+}
+
+function writeViews(views: CustomFeedView[]): CustomFeedView[] {
+  const cleaned = normalizeViews(views)
+  viewStore.set('views', { version: 1, views: cleaned })
+  return cleaned
+}
+
+export async function createView(value: unknown): Promise<CustomFeedView[]> {
+  const name = sanitizeViewName(value && typeof value === 'object' ? (value as any).name : value)
+  const candidate = name ? normalizeViews([{ ...(value as any), name }])[0] : null
+  const views = await readViews()
+  if (!candidate) return views
+  const base = candidate.id
+  const id = views.some(view => view.id === base) ? `${base}-${Date.now().toString(36)}` : base
+  return writeViews([...views, { ...candidate, id }])
+}
+
+export async function updateView(id: string, value: unknown): Promise<CustomFeedView[]> {
+  const views = await readViews()
+  const source = views.find(view => view.id === id)
+  if (!source) return views
+  const candidate = normalizeViews([{ ...source, ...(value as any), id }])[0]
+  return writeViews(views.map(view => view.id === id ? candidate : view))
+}
+
+export async function deleteView(id: string): Promise<CustomFeedView[]> {
+  return writeViews((await readViews()).filter(view => view.id !== id))
 }

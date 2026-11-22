@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen, Clock, Bookmark, BookmarkCheck, Play, MessageCircle } from 'lucide-react'
+import { BookOpen, Clock, Check, Circle, BookmarkPlus, BookmarkCheck, Play, MessageCircle } from 'lucide-react'
 import { formatDate, classNames } from '../lib/utils'
 import type { Article } from '../types'
 import './ArticleCard.css'
@@ -18,7 +18,7 @@ const DENSITY_CLASSES = {
 }
 
 export default function ArticleCard({ article, density, onOpen }: ArticleCardProps) {
-  const { markRead } = useStore()
+  const { markRead, toggleSave } = useStore()
   const isRead = article.isRead
   const [thumbnailFailed, setThumbnailFailed] = useState(false)
 
@@ -43,7 +43,7 @@ export default function ArticleCard({ article, density, onOpen }: ArticleCardPro
 
   return (
     <article 
-      className={classNames('article-card', densityClass, isRead && 'read', `content-${article.contentType || 'article'}`)}
+      className={classNames('article-card', densityClass, isRead && 'read', article.saved && 'saved', !article.available && 'unavailable', `content-${article.contentType || 'article'}`)}
     >
       <div className="card-main">
         {!thumbnailUrl && article.contentType === 'video' && (
@@ -73,6 +73,7 @@ export default function ArticleCard({ article, density, onOpen }: ArticleCardPro
             </span>
             {article.contentType === 'video' && <span className="card-type-label"><Play size={11} /> Video</span>}
             {article.sourceType === 'reddit' && <span className="card-type-label"><MessageCircle size={11} /> {article.author || 'post'}</span>}
+            {!article.available && <span className="card-type-label saved-copy">Saved copy</span>}
             <time className="card-date" dateTime={article.pubDate}>
               <Clock size={12} aria-hidden="true" />
               {formatDate(article.pubDate)}
@@ -92,10 +93,19 @@ export default function ArticleCard({ article, density, onOpen }: ArticleCardPro
               aria-label={isRead ? 'Mark as unread' : 'Mark as read'}
               aria-pressed={isRead}
             >
-              {isRead ? <BookmarkCheck size={14} /> : <Bookmark size={14} />}
+              {isRead ? <Check size={14} /> : <Circle size={14} />}
               <span>{isRead ? 'Read' : 'Unread'}</span>
             </button>
-            
+            <button
+              className={classNames('action-btn', article.saved && 'saved')}
+              onClick={() => void toggleSave(article)}
+              aria-label={article.saved ? 'Remove from saved' : 'Save for later'}
+              aria-pressed={article.saved}
+            >
+              {article.saved ? <BookmarkCheck size={14} /> : <BookmarkPlus size={14} />}
+              <span>{article.saved ? 'Saved' : 'Save'}</span>
+            </button>
+
             <button
               className="action-btn primary"
               onClick={handleOpen}

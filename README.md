@@ -1,10 +1,16 @@
 # Mado (窓) — Your Window to the World
 
-A personal desktop application combining a unified, personally curated feed (RSS/Atom, YouTube and Reddit) with Facebook Messenger, built with Electron, React, TypeScript and Vite.
+A personal desktop application combining a unified, personally curated feed (RSS/Atom, YouTube and Reddit) with Facebook Messenger. V0.7 adds user-defined categories, saved content, custom feed views, combined filters, OPML and source discovery.
 
 ## Features
 
 - **Unified Content Feed**: RSS/Atom articles, YouTube videos and Reddit posts in one chronological, non-algorithmic feed
+- **Categories**: create, rename and delete categories; assign sources to several categories; filter by category
+- **Saved Content**: save articles, videos and posts for later with read state kept separate; saved metadata survives source removal
+- **Custom Feed Views**: named views based on categories, sources and content types, alongside All feed and Saved
+- **Advanced Filters**: combine All/Unread/Saved, category, source type, source, content type, search and date range
+- **OPML**: import/export RSS subscriptions with folder/category information and duplicate reporting
+- **Source Discovery**: find advertised RSS/Atom feeds from a website URL; platform URLs route to existing adapters
 - **Source Adapters**: Extensible local adapters for RSS/Atom, YouTube channels and Reddit communities
 - **YouTube Channels**: Follow by canonical channel ID or channel URL; video cards, thumbnails and user-initiated **Watch on YouTube**
 - **Reddit Communities**: Follow by name or URL; post text, previews, author context and **View Discussion**
@@ -91,6 +97,7 @@ Mado/
 │   │   ├── reader.ts / reader-content.ts # Article extraction and sanitization
 │   │   ├── rss.ts               # RSS/Atom fetching & parsing (rss-parser + sanitize-html)
 │   │   ├── sources/             # Unified adapters: model, RSS, YouTube, Reddit, refresh cache
+│   │   ├── organize/            # Categories, saved content, custom views, OPML, discovery
 │   │   └── store.ts             # Local JSON storage (electron-store)
 │   ├── renderer/                # React frontend
 │   │   ├── components/          # React components
@@ -158,6 +165,17 @@ The Feed view combines all enabled sources in chronological order. It never reco
 
 Use the source-type and source selectors in the feed header to narrow the combined feed, alongside the existing All/Unread and search controls. Videos show a play indicator and open a user-initiated **Watch on YouTube** action; Reddit posts show supplied text and **View Discussion on Reddit**. Mado does not autoplay embedded video.
 
+## Organizing Your Feed
+
+V0.7 adds user-controlled organization without changing chronological order:
+
+- **Categories** are created in Sources and assigned per source. Deleting a category never deletes a subscription.
+- **Saved** is available from the sidebar, feed view selector or Saved filter button. Saving does not mark an item read.
+- **Custom Feeds** are created in Sources from selected categories, sources and an optional content type. Switch views from the sidebar or feed header.
+- **Advanced Filters** are behind the sliders button; active filters appear as chips and **Clear Filters** restores the default view.
+- **OPML** import/export is available in Sources. Only RSS/Atom subscriptions are exported; native YouTube/Reddit sources are not misrepresented as RSS.
+- **Discover** (magnifier in the RSS Add Source field) lists RSS/Atom feeds advertised by a website. YouTube and Reddit URLs are recognized automatically.
+
 ## Messenger Integration
 
 The Messenger panel uses Electron's `WebContentsView` with:
@@ -183,6 +201,9 @@ Conversation tabs are local shortcuts that navigate one shared Messenger session
 
 ### Known Limitations
 
+- OPML import uses native dialogs and does not fetch imported URLs automatically
+- Source discovery is bounded and reads advertised feeds only; it is not a general crawler
+- Saved items keep feed metadata, not full offline articles or videos
 - Facebook may block embedding or require login challenges
 - YouTube `@handle` URLs are rejected; use a canonical channel ID or channel URL
 - Reddit public feeds may return 404/429 from some networks; Mado shows the source error and keeps the last successful fetch
@@ -213,13 +234,16 @@ Access via the **Settings** sidebar item:
 - **100% local** — No cloud sync, no accounts, no telemetry
 - **Storage location**: `%APPDATA%\Mado\` (Windows)
 - **Files**:
-  - `feeds.json` — Versioned RSS/YouTube/Reddit subscriptions
+  - `feeds.json` — Versioned subscriptions and category assignments
   - `read-state.json` — Content read/unread map
-  - `settings.json` — App preferences
+  - `saved.json` — Saved content snapshots
+  - `categories.json` — User-defined categories
+  - `feed-views.json` — Custom feed definitions
+  - `settings.json` — App preferences and persisted feed filters
   - `messenger-tabs.json` — Saved/pinned conversation shortcuts and local labels
   - `window-state.json` — Window size, position and maximized state
   - `messenger/` — Facebook cookies/session (Electron partition)
-- **Reset all data**: Settings → Danger Zone → Reset All Data asks for two confirmations, restores default sources/read state/preferences/tabs/window state and leaves the `messenger/` Facebook session intact.
+- **Reset all data**: Settings → Danger Zone → Reset All Data asks for two confirmations, restores default sources/categories/saved items/custom feeds/read state/preferences/tabs/window state and leaves the `messenger/` Facebook session intact.
 
 ## Building for Distribution
 
@@ -231,7 +255,7 @@ npm run build
 npx electron-builder --win nsis
 ```
 
-Output: `dist/Mado Setup 0.6.0.exe`
+Output: `dist/Mado Setup 0.7.0.exe`
 
 ## Troubleshooting
 

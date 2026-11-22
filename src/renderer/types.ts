@@ -1,6 +1,38 @@
 export type SourceType = 'rss' | 'youtube' | 'reddit'
 export type ContentType = 'article' | 'video' | 'post' | 'image' | 'link'
 
+export interface Category {
+  id: string
+  name: string
+}
+
+export interface CustomFeedView {
+  id: string
+  name: string
+  categoryIds: string[]
+  sourceIds: string[]
+  contentTypes: ContentType[]
+  typeFilter: SourceType | 'all'
+}
+
+export interface DiscoveredSource {
+  kind: SourceType
+  url: string
+  title: string
+}
+
+export interface DiscoveryResult {
+  sources: DiscoveredSource[]
+  message: string
+}
+
+export interface OpmlImportSummary {
+  imported: number
+  duplicates: number
+  invalid: number
+  reasons: string[]
+}
+
 export interface Feed {
   id?: string
   type?: SourceType
@@ -11,6 +43,7 @@ export interface Feed {
   lastFetched: string | null
   lastError?: string | null
   metadata?: Record<string, string>
+  categoryIds: string[]
 }
 
 export interface Article {
@@ -29,6 +62,9 @@ export interface Article {
   feedTitle: string
   feedUrl: string
   isRead: boolean
+  saved: boolean
+  available: boolean
+  categoryIds: string[]
 }
 
 export interface ReaderResult {
@@ -51,6 +87,13 @@ export interface Settings {
   closeToTray: boolean
   startMinimized: boolean
   messengerNotifications: boolean
+  feedViewId: string
+  feedFilterMode: FilterMode
+  feedCategoryFilter: string
+  feedSourceTypeFilter: SourceType | 'all'
+  feedSourceFilter: string
+  feedDateFrom: string
+  feedDateTo: string
   [key: string]: any
 }
 
@@ -85,4 +128,4 @@ export interface DesktopState {
 
 export type ViewMode = 'feed' | 'sources' | 'settings'
 
-export type FilterMode = 'all' | 'unread'
+export type FilterMode = 'all' | 'unread' | 'saved'

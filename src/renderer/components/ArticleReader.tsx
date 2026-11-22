@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { ArrowLeft, ExternalLink, Loader2, AlertCircle } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Loader2, AlertCircle, BookmarkPlus, BookmarkCheck } from 'lucide-react'
 import type { Article, ReaderResult } from '../types'
 import { api } from '../lib/api'
+import { useStore } from '../hooks/useStore'
 import { formatDateFull } from '../lib/utils'
 import './ArticleReader.css'
 
@@ -14,6 +15,7 @@ export default function ArticleReader({ article, onBack }: { article: Article; o
   const [error, setError] = useState<string | null>(null)
   const [externalError, setExternalError] = useState<string | null>(null)
   const heading = useRef<HTMLHeadingElement>(null)
+  const { toggleSave } = useStore()
 
   useEffect(() => {
     let active = true
@@ -48,6 +50,9 @@ export default function ArticleReader({ article, onBack }: { article: Article; o
       <header className="reader-toolbar">
         <button className="btn secondary" onClick={onBack}><ArrowLeft size={16} /> Back to Feed</button>
         <button className="btn secondary" onClick={() => void openExternal(article.link)}><ExternalLink size={16} /> Open in Browser</button>
+        <button className="btn secondary" onClick={() => void toggleSave(article)} aria-pressed={article.saved}>
+          {article.saved ? <BookmarkCheck size={16} /> : <BookmarkPlus size={16} />} {article.saved ? 'Saved' : 'Save'}
+        </button>
       </header>
       <div className="reader-scroll">
         <article className="reader-page">
@@ -59,6 +64,7 @@ export default function ArticleReader({ article, onBack }: { article: Article; o
           {!result && !error && <div className="reader-loading" role="status"><Loader2 size={20} className="spinning" /> Preparing article…</div>}
           {error && <div className="reader-notice" role="alert"><AlertCircle size={18} /><p>{error} You can still open the original in your browser.</p></div>}
           {result?.notice && <div className="reader-notice" role="status"><AlertCircle size={18} /><p>{result.notice}</p></div>}
+          {!article.available && <div className="reader-notice" role="status"><AlertCircle size={18} /><p>This item is no longer in your active feeds. Showing the details saved in Mado.</p></div>}
           {article.contentType === 'video' && result && (
             <div className="video-view">
               {article.thumbnail && <img src={article.thumbnail} alt="" loading="lazy" referrerPolicy="no-referrer" />}

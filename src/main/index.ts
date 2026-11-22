@@ -1,14 +1,18 @@
-import { app, BrowserWindow, ipcMain, shell, WebContentsView, IpcMainInvokeEvent, WebContents, nativeTheme, Notification, screen, session } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell, WebContentsView, IpcMainInvokeEvent, WebContents, nativeTheme, Notification, screen, session } from 'electron'
+import { readFile, writeFile } from 'node:fs/promises'
 import { messengerStyle } from './messenger-style.js'
 import { publicWebUrl, isPublicAddress } from './reader-content.js'
 import { lookup } from 'node:dns'
 import { join } from 'path'
-import { readFeeds, writeFeeds, readReadState, updateReadState, readSettings, writeSettings, readConversationTabs, writeConversationTabs, readWindowState, writeWindowState, isAllowedSettingKey, resetApplicationData } from './store.js'
+import { readFeeds, writeFeeds, readReadState, updateReadState, readSettings, writeSettings, readConversationTabs, writeConversationTabs, readWindowState, writeWindowState, isAllowedSettingKey, resetApplicationData, readCategories, createCategory, renameCategory, deleteCategory, assignCategories, readSaved, saveContent, unsaveContent, readViews, createView, updateView, deleteView } from './store.js'
 import { fetchFeed } from './rss.js'
 import { clearSourceCache, fetchSource, fetchSourcesConcurrently } from './sources/index.js'
 import { dedupeContent, isReadInState, sourceId, type SourceType } from './sources/model.js'
 import { resolveYouTubeChannel } from './sources/youtube-adapter.js'
 import { resolveRedditCommunity } from './sources/reddit-adapter.js'
+import { discoverSources } from './organize/discovery.js'
+import { parseOpml, buildOpml } from './organize/opml.js'
+import { categoryNameMap } from './organize/categories.js'
 import {
   classifyMessengerNavigation,
   isMessengerAuthenticationUrl,
@@ -511,6 +515,8 @@ async function getAllArticles(force = false): Promise<any[]> {
   const results = await fetchSourcesConcurrently(enabledFeeds, force)
   // Read after network completion so a refresh cannot resurrect newly read articles.
   const readState = await readReadState()
+  const saved = await readSaved()
+  const savedKeys = new Set(Object.keys(saved))
   const allArticles: any[] = []
   let failedFeeds = 0
 
@@ -523,7 +529,13 @@ async function getAllArticles(force = false): Promise<any[]> {
     if (result.error) failedFeeds += 1
     // On failure this contains the last successful fetch, so previous content
     // remains visible even though the source error is surfaced separately.
-    for (const item of result.items) allArticles.push({ ...item, isRead: isReadInState(readState, item) })
+    for (const item of result.items) allArticles.push({
+      ...item,
+      isRead: isReadInState(readState, item),
+      saved: savedKeys.has(item.id) || savedKeys.has(item.link),
+      categoryIds: feed.categoryIds || [],
+      available: true,
+    })
   }
 
   const latestFeeds = await readFeeds()
@@ -541,7 +553,22 @@ async function getAllArticles(force = false): Promise<any[]> {
     throw new Error('Unable to load any enabled sources. Check your connection or source URLs and retry.')
   }
 
-  const deduped = dedupeContent(allArticles)
+  const deduped: any[] = dedupeContent(allArticles) as any[]
+  const seenLinks = new Set(deduped.map(item => item.link))
+  const seenIds = new Set(deduped.map(item => item.id))
+  for (const item of Object.values(saved)) {
+    if (seenIds.has(item.id) || seenLinks.has(item.link)) continue
+    const source = feeds.find(feed => feed.id === item.sourceId || feed.url === item.feedUrl)
+    deduped.push({
+      ...item,
+      isRead: isReadInState(readState, item as any),
+      saved: true,
+      available: false,
+      categoryIds: source?.categoryIds || [],
+    })
+    seenIds.add(item.id)
+    seenLinks.add(item.link)
+  }
   readerSources.clear()
   for (const item of deduped) {
     readerSources.set(item.link, item)
@@ -617,6 +644,7 @@ ipcMain.handle('feeds:add', async (_: IpcMainInvokeEvent, input: string, type: S
     lastFetched: null,
     lastError: null,
     metadata,
+    categoryIds: [],
   }
   const items = await fetchSource(newFeed, true)
   if (type === 'rss' && items[0]) newFeed.title = items[0].sourceName || title
@@ -701,6 +729,13 @@ ipcMain.handle('settings:set', async (_: IpcMainInvokeEvent, key: string, value:
     throw new Error('Messenger visibility must be a boolean')
   } else if (['trayEnabled', 'closeToTray', 'startMinimized', 'messengerNotifications'].includes(key) && typeof value !== 'boolean') {
     throw new Error(`${key} must be a boolean`)
+  } else if (key === 'feedFilterMode' && !['all', 'unread', 'saved'].includes(value)) {
+    throw new Error('Invalid feed filter mode')
+  } else if (key === 'feedSourceTypeFilter' && !['all', 'rss', 'youtube', 'reddit'].includes(value)) {
+    throw new Error('Invalid source type filter')
+  } else if (['feedViewId', 'feedCategoryFilter', 'feedSourceFilter', 'feedDateFrom', 'feedDateTo'].includes(key)) {
+    if (typeof value !== 'string' || value.length > 200) throw new Error(`${key} must be a short string`)
+    if (key.startsWith('feedDate') && value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Invalid date')
   }
 
   ;(settings as Record<string, any>)[key] = normalizedValue
@@ -768,6 +803,73 @@ ipcMain.handle('desktop:get-state', () => ({
   messengerUnread: messengerUnread > 0,
   windowState: windowState ? { ...windowState } : null,
 }))
+
+ipcMain.handle('categories:get', async () => readCategories())
+ipcMain.handle('categories:create', async (_: IpcMainInvokeEvent, name: string) => createCategory(name))
+ipcMain.handle('categories:rename', async (_: IpcMainInvokeEvent, id: string, name: string) => renameCategory(id, name))
+ipcMain.handle('categories:delete', async (_: IpcMainInvokeEvent, id: string) => deleteCategory(id))
+ipcMain.handle('categories:assign', async (_: IpcMainInvokeEvent, url: string, ids: string[]) => assignCategories(url, ids))
+
+ipcMain.handle('saved:get', async () => readSaved())
+ipcMain.handle('saved:save', async (_: IpcMainInvokeEvent, item: unknown) => saveContent(item))
+ipcMain.handle('saved:unsave', async (_: IpcMainInvokeEvent, key: string) => unsaveContent(key))
+
+ipcMain.handle('views:get', async () => readViews())
+ipcMain.handle('views:create', async (_: IpcMainInvokeEvent, value: unknown) => createView(value))
+ipcMain.handle('views:update', async (_: IpcMainInvokeEvent, id: string, value: unknown) => updateView(id, value))
+ipcMain.handle('views:delete', async (_: IpcMainInvokeEvent, id: string) => deleteView(id))
+
+ipcMain.handle('sources:discover', async (_: IpcMainInvokeEvent, input: string) => discoverSources(input))
+
+ipcMain.handle('opml:import', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: 'OPML files', extensions: ['opml', 'xml'] }],
+  })
+  if (canceled || !filePaths.length) return null
+  const xml = await readFile(filePaths[0], 'utf8')
+  const feeds = await readFeeds()
+  const result = parseOpml(xml, feeds.map(feed => feed.url))
+  const categories = await readCategories()
+  const byName = new Map(categories.map(category => [category.name.toLowerCase(), category.id]))
+  const categoryStoreUpdates = [...new Set(result.entries.flatMap(entry => entry.categories))]
+  for (const name of categoryStoreUpdates) {
+    if (!byName.has(name.toLowerCase())) {
+      const created = await createCategory(name)
+      if (created.category) byName.set(created.category.name.toLowerCase(), created.category.id)
+    }
+  }
+  const added = result.entries.map(entry => ({
+    id: sourceId('rss', entry.url),
+    type: 'rss' as SourceType,
+    url: entry.url,
+    sourceUrl: entry.url,
+    title: entry.title,
+    enabled: true,
+    lastFetched: null,
+    lastError: null,
+    metadata: {},
+    categoryIds: entry.categories.map(name => byName.get(name.toLowerCase())).filter((id): id is string => !!id),
+  }))
+  if (added.length) await writeFeeds([...feeds, ...added])
+  return { imported: added.length, duplicates: result.duplicates.length, invalid: result.invalid.length, reasons: result.invalid.map(entry => entry.reason) }
+})
+
+ipcMain.handle('opml:export', async () => {
+  const feeds = (await readFeeds()).filter(feed => feed.type === 'rss')
+  const names = categoryNameMap(await readCategories())
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    defaultPath: 'mado-subscriptions.opml',
+    filters: [{ name: 'OPML files', extensions: ['opml'] }],
+  })
+  if (canceled || !filePath) return null
+  await writeFile(filePath, buildOpml(feeds.map(feed => ({
+    url: feed.url,
+    title: feed.title,
+    categories: (feed.categoryIds || []).map(id => names[id]).filter(Boolean),
+  }))), 'utf8')
+  return filePath
+})
 
 ipcMain.handle('app:reset', async () => {
   clearSourceCache()

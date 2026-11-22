@@ -41,6 +41,11 @@ const server = http.createServer((req, res) => {
     res.end(`<?xml version="1.0"?><feed xmlns="http://www.w3.org/2005/Atom"><title>r/technology</title><id>https://www.reddit.com/r/technology/</id><updated>2026-11-21T10:00:00Z</updated><entry><title>Reddit fixture discussion</title><link href="https://www.reddit.com/r/technology/comments/1/fixture/"/><id>https://www.reddit.com/r/technology/comments/1/fixture/</id><updated>2026-11-21T10:00:00Z</updated><author><name>fixture-author</name></author><content type="html">&lt;p&gt;A controlled Reddit post body for feed verification.&lt;/p&gt;</content></entry></feed>`)
     return
   }
+  if (req.url === '/discover') {
+    res.setHeader('Content-Type', 'text/html; charset=utf-8')
+    res.end(`<!doctype html><html><head><title>Discovery fixture</title><link rel="alternate" type="application/rss+xml" title="Fixture Discovery Feed" href="/feed"></head><body>Controlled discovery page.</body></html>`)
+    return
+  }
   if (req.url?.startsWith('/article-')) {
     if (req.url === '/article-1') { res.writeHead(403); res.end('Restricted'); return }
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
@@ -103,6 +108,9 @@ if (!process.env.MADO_VERIFY_RESTART) {
   await fs.writeFile(path.join(profile, 'mado', 'settings.json'), JSON.stringify({ settings: { theme: 'dark', showReadArticles: true, messengerVisible: true, messengerWidth: 420 } }))
   await fs.writeFile(path.join(profile, 'mado', 'read-state.json'), JSON.stringify({ state: {} }))
   await fs.writeFile(path.join(profile, 'mado', 'messenger-tabs.json'), JSON.stringify({ tabs: [] }))
+  await fs.writeFile(path.join(profile, 'mado', 'categories.json'), JSON.stringify({ version: 1, categories: [] }))
+  await fs.writeFile(path.join(profile, 'mado', 'saved.json'), JSON.stringify({ version: 1, items: {} }))
+  await fs.writeFile(path.join(profile, 'mado', 'feed-views.json'), JSON.stringify({ version: 1, views: [] }))
   await fs.writeFile(path.join(profile, 'mado', 'window-state.json'), JSON.stringify({ state: { x: null, y: null, width: 1400, height: 900, maximized: false } }))
 }
 const external = []
@@ -153,8 +161,9 @@ const waitFor = async (probe, label) => {
 }
 try {
   if (process.env.MADO_VERIFY_RESTART) {
-    await wait("document.documentElement.dataset.theme === 'light' && document.querySelector('.filter-btn')?.textContent.includes('Unread') && document.querySelectorAll('.article-card').length > 0")
-    check('full Electron process restart restores Light and Unread', true)
+    const persistedFilter = await js("window.electronAPI.settings.get().then(s => s.feedFilterMode || (s.showReadArticles ? 'all' : 'unread'))")
+    await wait(`document.documentElement.dataset.theme === 'light' && document.querySelector('.filter-btn')?.textContent.includes('${persistedFilter === 'unread' ? 'Unread' : 'All'}') && document.querySelectorAll('.article-card').length > 0`)
+    check(`full Electron process restart restores Light and ${persistedFilter} filter`, true)
     check('full Electron process restart restores persisted read status', await js("window.electronAPI.articles.get().then(articles => articles.find(a=>a.link === 'https://example.org/article-0').isRead)"))
     check('full Electron process restart restores Messenger visibility and width', await js("window.electronAPI.settings.get().then(settings => settings.messengerVisible === true && settings.messengerWidth === 420)"))
     if (process.env.MADO_VERIFY_STAGE === 'v04') {
@@ -255,8 +264,9 @@ try {
   await delay(200)
   check('Facebook SPA home transition recovers to Messenger', new URL(messenger.webContents.getURL()).pathname.startsWith('/messages/'))
   await fs.writeFile(path.join(profile, 'feed-light.png'), (await win.webContents.capturePage()).toPNG())
-  await fs.writeFile(path.join(profile, 'messenger-light.png'), (await messenger.webContents.capturePage()).toPNG())
-  if (['v03', 'v04', 'v05', 'v06'].includes(process.env.MADO_VERIFY_STAGE)) {
+  try { await fs.writeFile(path.join(profile, 'messenger-light.png'), (await messenger.webContents.capturePage()).toPNG()) }
+  catch { /* capture surface can be unavailable in the sandbox; assertions do not depend on it */ }
+  if (['v03', 'v04', 'v05', 'v06', 'v07'].includes(process.env.MADO_VERIFY_STAGE)) {
     await click('.filter-btn') // All; exact scroll restoration while the opened article becomes read.
     await wait("document.querySelectorAll('.article-card').length === 24")
     await js("document.querySelector('.feed-container').scrollTop = 650")
@@ -326,7 +336,7 @@ try {
     await wait("!!document.querySelector('.messenger-panel')")
     check('reopening Messenger reattaches the native view', win.contentView.children.includes(messenger) && await js("document.querySelector('.messenger-space').clientWidth === 420"))
   }
-  if (['v04', 'v05', 'v06'].includes(process.env.MADO_VERIFY_STAGE)) {
+  if (['v04', 'v05', 'v06', 'v07'].includes(process.env.MADO_VERIFY_STAGE)) {
     const messengerId = messenger.webContents.id
     const tabCount = () => js("document.querySelectorAll('.conv-tab:not(.chats-tab)').length")
     const goToConversation = async id => {
@@ -415,7 +425,7 @@ try {
     win.webContents.reload()
     await wait("document.querySelector('.messenger-panel')?.clientWidth === 419")
   }
-  if (['v05', 'v06'].includes(process.env.MADO_VERIFY_STAGE)) {
+  if (['v05', 'v06', 'v07'].includes(process.env.MADO_VERIFY_STAGE)) {
     const press = async (keyCode, modifiers = []) => {
       await win.webContents.focus()
       await win.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers })
@@ -527,6 +537,36 @@ try {
     await js('window.electronAPI.app.reset()')
     await wait("window.electronAPI.feeds.get().then(feeds => feeds.length === 6)")
     check('Reset All Data restores defaults without arbitrary settings keys', await js("window.electronAPI.feeds.get().then(feeds => feeds.every(feed => feed.type === 'rss')) && window.electronAPI.settings.get().then(settings => settings.theme === 'dark' && settings.reset === undefined)"))
+  }
+  if (process.env.MADO_VERIFY_STAGE === 'v07') {
+    const feedUrl = await js("window.electronAPI.feeds.get().then(f => f[0].url)")
+    const categoryResult = await js("window.electronAPI.categories.create('Gaming').then(r => JSON.stringify({ id: r.category?.id, count: r.categories.length }))")
+    const categoryId = JSON.parse(categoryResult).id
+    check('categories can be created and listed', !!categoryId && JSON.parse(categoryResult).count === 1)
+    await js(`window.electronAPI.categories.assign(${JSON.stringify(feedUrl)}, [${JSON.stringify(categoryId)}])`)
+    check('category assignments ignore unknown ids', await js(`window.electronAPI.categories.assign(${JSON.stringify(feedUrl)}, [${JSON.stringify(categoryId)}, 'cat:missing']).then(f => f[0].categoryIds.length === 1)`))
+    check('category rename and delete preserve subscriptions', await js(`window.electronAPI.categories.rename(${JSON.stringify(categoryId)}, 'Games').then(() => window.electronAPI.categories.remove(${JSON.stringify(categoryId)})).then(r => r.feeds.length === 1 && r.categories.length === 0)`))
+    const beforeSave = JSON.parse(await js("window.electronAPI.articles.get().then(a => JSON.stringify({ id: a[0].id, read: a[0].isRead }))"))
+    check('saving keeps read status unchanged', await js(`window.electronAPI.articles.get().then(a => window.electronAPI.saved.save(a[0])).then(saved => window.electronAPI.articles.get().then(next => saved !== null && next.find(x => x.id === ${JSON.stringify(beforeSave.id)}).isRead === ${beforeSave.read}))`))
+    await js('window.electronAPI.articles.get()')
+    await js("window.electronAPI.settings.set('feedFilterMode', 'saved')")
+    win.webContents.reload()
+    await wait("!!document.querySelector('.article-card') && !!document.querySelector('[aria-label=\"Show saved items\"]')")
+    check('saved filter shows saved content after restart', await js("document.querySelectorAll('.article-card').length === 1 && !!document.querySelector('.article-card.saved')"))
+    await js("window.electronAPI.settings.set('feedFilterMode', 'all')")
+    await js("window.electronAPI.views.create({ name: 'Tech Desk', categoryIds: [], sourceIds: [], contentTypes: [], typeFilter: 'all' })")
+    check('custom feed views persist and can be renamed/deleted', await js(`window.electronAPI.views.get().then(views => {
+      const id = views[0]?.id;
+      return !!id && window.electronAPI.views.update(id, { name: 'Desk' }).then(() => window.electronAPI.views.get()).then(next => next[0]?.name === 'Desk' && window.electronAPI.views.remove(id)).then(remaining => remaining.length === 0)
+    })`))
+    const discovery = await js("window.electronAPI.sources.discover('https://example.org/discover').then(r => JSON.stringify({ count: r.sources.length, kind: r.sources[0]?.kind, message: r.message }))")
+    const discoveryResult = JSON.parse(discovery)
+    check('source discovery finds advertised RSS feeds', discoveryResult.count === 1 && discoveryResult.kind === 'rss' && /feed/i.test(discoveryResult.message))
+    await click('[aria-label="Sources"]')
+    await wait("!!document.querySelector('.organize-section')")
+    check('Sources exposes categories, custom feeds and OPML actions', await js("!!document.querySelector('[aria-label=\"New category name\"]') && !!document.querySelector('[aria-label=\"New feed name\"]') && !!document.querySelector('[aria-label=\"Import OPML\"]') && !!document.querySelector('[aria-label=\"Export OPML\"]')"))
+    await fs.writeFile(path.join(profile, 'v07-sources.png'), (await win.webContents.capturePage()).toPNG())
+    check('saved item survives unsave round trip', await js(`(async () => { const items = await window.electronAPI.articles.get(); await window.electronAPI.saved.unsave(items[0].id); const next = await window.electronAPI.articles.get(); return next.some(x => x.saved) === false })()`))
   }
   await delay(400) // Finish queued preference writes before the restart check.
   await fs.writeFile(path.join(profile, 'results.json'), JSON.stringify({ checks: logs, external }, null, 2))

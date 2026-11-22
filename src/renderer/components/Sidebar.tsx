@@ -10,9 +10,11 @@ import {
   ChevronDown,
   ChevronUp,
   Sun,
-  Moon
+  Moon,
+  Bookmark,
+  Layers
 } from 'lucide-react'
-import { useSettings, useTheme } from '../hooks/useStore'
+import { useSettings, useTheme, useOrganize, useStore } from '../hooks/useStore'
 import type { ViewMode } from '../types'
 import './Sidebar.css'
 
@@ -25,7 +27,11 @@ const NAV_ITEMS: { id: ViewMode; label: string; icon: LucideIcon }[] = [
 export default function Sidebar({ activeView, onViewChange }: { activeView: ViewMode; onViewChange: (view: ViewMode) => void }) {
   const { messengerVisible, setMessengerVisible } = useSettings()
   const { theme, setTheme } = useTheme()
+  const { categories, views, feedViewId, setFeedViewId, setCategoryFilter } = useOrganize()
+  const { setFilter } = useStore()
   const [collapsed, setCollapsed] = useState(false)
+
+  const openFeed = (action: () => void) => { onViewChange('feed'); action() }
 
   return (
     <aside className={classNames('sidebar', collapsed && 'collapsed')}>
@@ -65,6 +71,49 @@ export default function Sidebar({ activeView, onViewChange }: { activeView: View
       </nav>
 
       {!collapsed && (
+        <>
+          <div className="sidebar-divider" />
+          <div className="sidebar-section">
+            <div className="section-header">Your Feed</div>
+            <button
+              className={classNames('nav-subitem', feedViewId === 'saved' && 'active')}
+              onClick={() => openFeed(() => { setFeedViewId('saved'); setFilter('all') })}
+              aria-label="Saved items"
+            >
+              <Bookmark size={16} aria-hidden="true" /> <span>Saved</span>
+            </button>
+            <button
+              className={classNames('nav-subitem', feedViewId === 'all' && 'active')}
+              onClick={() => openFeed(() => { setFeedViewId('all'); setCategoryFilter('all') })}
+              aria-label="All feed"
+            >
+              <Home size={16} aria-hidden="true" /> <span>All feed</span>
+            </button>
+          </div>
+          {categories.length > 0 && (
+            <div className="sidebar-section">
+              <div className="section-header">Categories</div>
+              {categories.map(category => (
+                <button key={category.id} className="nav-subitem" onClick={() => openFeed(() => { setFeedViewId('all'); setCategoryFilter(category.id) })} aria-label={category.name}>
+                  <span className="category-dot" /> <span>{category.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {views.length > 0 && (
+            <div className="sidebar-section">
+              <div className="section-header">Custom Feeds</div>
+              {views.map(view => (
+                <button key={view.id} className={classNames('nav-subitem', feedViewId === view.id && 'active')} onClick={() => openFeed(() => setFeedViewId(view.id))} aria-label={view.name}>
+                  <Layers size={16} aria-hidden="true" /> <span>{view.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {!collapsed && (
         <div className="sidebar-divider" />
       )}
 
@@ -101,7 +150,7 @@ export default function Sidebar({ activeView, onViewChange }: { activeView: View
       )}
 
       <div className="sidebar-footer">
-        {!collapsed && <span className="version">v0.6.0</span>}
+        {!collapsed && <span className="version">v0.7.0</span>}
       </div>
     </aside>
   )

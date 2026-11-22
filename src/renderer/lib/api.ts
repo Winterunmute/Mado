@@ -1,4 +1,4 @@
-import type { Feed, Article, Settings, ReaderResult, ConversationTab, MessengerLocation, DesktopState, SourceType } from '../types'
+import type { Feed, Article, Settings, ReaderResult, ConversationTab, MessengerLocation, DesktopState, SourceType, Category, CustomFeedView, DiscoveryResult, OpmlImportSummary } from '../types'
 
 declare global {
   interface Window {
@@ -48,6 +48,31 @@ declare global {
       conversationTabs: {
         get: () => Promise<ConversationTab[]>
         save: (tabs: ConversationTab[]) => Promise<ConversationTab[]>
+      }
+      categories: {
+        get: () => Promise<Category[]>
+        create: (name: string) => Promise<{ categories: Category[]; category: Category | null }>
+        rename: (id: string, name: string) => Promise<Category[]>
+        remove: (id: string) => Promise<{ categories: Category[]; feeds: Feed[] }>
+        assign: (url: string, ids: string[]) => Promise<Feed[]>
+      }
+      saved: {
+        get: () => Promise<Record<string, Article>>
+        save: (item: Article) => Promise<Article | null>
+        unsave: (key: string) => Promise<Record<string, Article>>
+      }
+      views: {
+        get: () => Promise<CustomFeedView[]>
+        create: (value: Partial<CustomFeedView>) => Promise<CustomFeedView[]>
+        update: (id: string, value: Partial<CustomFeedView>) => Promise<CustomFeedView[]>
+        remove: (id: string) => Promise<CustomFeedView[]>
+      }
+      sources: {
+        discover: (input: string) => Promise<DiscoveryResult>
+      }
+      opml: {
+        import: () => Promise<OpmlImportSummary | null>
+        export: () => Promise<string | null>
       }
       shell: {
         openExternal: (url: string) => Promise<void>

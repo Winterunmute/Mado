@@ -148,6 +148,23 @@
   color: var(--accent-primary);
 }
 
+.nav-subitem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+.nav-subitem:hover, .nav-subitem.active { background: var(--bg-tertiary); color: var(--accent-primary); }
+.category-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-primary); }
+
 .sidebar-footer {
   margin-top: auto;
   padding: 16px;

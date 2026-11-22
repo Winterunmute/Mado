@@ -28,6 +28,16 @@ test('legacy subscriptions migrate to stable typed sources', () => {
   assert.equal(normalizeSources('bad', []).length, 0)
 })
 
+test('V0.7 migration preserves legacy sources and adds empty category assignments', () => {
+  const legacy = [{ url: 'https://example.com/feed.xml', title: 'Example', enabled: false, lastFetched: null }]
+  const migrated = normalizeSources({ version: 2, feeds: legacy }, [])
+  assert.equal(migrated.length, 1)
+  assert.deepEqual(migrated[0].categoryIds, [])
+  const typed = normalizeSources({ version: 3, feeds: [{ ...legacy[0], type: 'youtube', categoryIds: ['cat:tech', 'cat:tech', ''] }] }, [])
+  assert.equal(typed[0].type, 'youtube')
+  assert.deepEqual(typed[0].categoryIds, ['cat:tech'])
+})
+
 test('media thumbnails normalize rss-parser object and array shapes', () => {
   assert.equal(mediaUrl({ url: 'https://example.org/a.jpg' }), 'https://example.org/a.jpg')
   assert.equal(mediaUrl({ $: { url: 'https://example.org/b.jpg' } }), 'https://example.org/b.jpg')
