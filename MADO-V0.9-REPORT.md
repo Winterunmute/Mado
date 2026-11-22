@@ -125,7 +125,7 @@ New V0.9 GUI checks cover first-run dialog content, dialog focus, skip/remember 
 
 - `.gitignore` now excludes `release/`, `coverage/`, signing keys/certificates (`*.p12`, `*.pfx`, `*.pem`, `*.key`, `*.snk`) and package files alongside existing `node_modules/`, `dist/`, `.verification/`, caches and logs.
 - No remote was added, changed or pushed. No history was rewritten.
-- Final staged-file review will be performed before a local commit; V0.8/V0.9 changes are to be committed locally only if the staged set is free of secrets and private data.
+- Final staged-file review passed with no verification profiles, installer artifacts, keys or private data staged. V0.8/V0.9 changes were committed locally as `91e7fc4` (`Mado V0.8/V0.9: performance polish and Windows release preparation`). No push was performed.
 - Historical agent reports and handoff documents were deliberately preserved for V1.0 cleanup.
 
 ## 12. Known issues and release blockers
