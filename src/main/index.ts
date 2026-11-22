@@ -23,6 +23,7 @@ import { DEFAULT_WINDOW_STATE, resolveWindowBounds, stateFromBounds, type Window
 import { actionForInput } from './shortcuts.js'
 import { shouldShowUnreadNotification, unreadCountFromTitle } from './notification-policy.js'
 import { createOrUpdateTray, destroyTray, isTrayActive, setTrayUnread, trayIconPaths } from './tray.js'
+import { checkForUpdates, configuredRelease } from './updates.js'
 
 const __dirname = import.meta.dirname
 const ICONS = trayIconPaths()
@@ -626,9 +627,10 @@ ipcMain.handle('feeds:add', async (_: IpcMainInvokeEvent, input: string, type: S
     title = `r/${community.name}`
     metadata = { community: community.name }
   } else {
-    const parsed = new URL(input.trim())
-    if (!['https:', 'http:'].includes(parsed.protocol) || parsed.username || parsed.password) throw new Error('Enter an HTTP(S) feed URL without credentials')
-    feedUrl = parsed.toString()
+    const safeUrl = publicWebUrl(input.trim())
+    if (!safeUrl) throw new Error('Enter a public HTTP(S) feed URL without credentials or private addresses')
+    const parsed = new URL(safeUrl)
+    feedUrl = safeUrl
     sourceUrl = feedUrl
     title = parsed.hostname
   }
@@ -727,12 +729,14 @@ ipcMain.handle('settings:set', async (_: IpcMainInvokeEvent, key: string, value:
     normalizedValue = Math.max(320, Math.min(600, value))
   } else if (key === 'messengerVisible' && typeof value !== 'boolean') {
     throw new Error('Messenger visibility must be a boolean')
-  } else if (['trayEnabled', 'closeToTray', 'startMinimized', 'messengerNotifications'].includes(key) && typeof value !== 'boolean') {
+  } else if (['trayEnabled', 'closeToTray', 'startMinimized', 'messengerNotifications', 'onboardingComplete'].includes(key) && typeof value !== 'boolean') {
     throw new Error(`${key} must be a boolean`)
   } else if (key === 'feedFilterMode' && !['all', 'unread', 'saved'].includes(value)) {
     throw new Error('Invalid feed filter mode')
   } else if (key === 'feedSourceTypeFilter' && !['all', 'rss', 'youtube', 'reddit'].includes(value)) {
     throw new Error('Invalid source type filter')
+  } else if (key === 'savedSort' && !['newest', 'oldest', 'title'].includes(value)) {
+    throw new Error('Invalid saved sort order')
   } else if (['feedViewId', 'feedCategoryFilter', 'feedSourceFilter', 'feedDateFrom', 'feedDateTo'].includes(key)) {
     if (typeof value !== 'string' || value.length > 200) throw new Error(`${key} must be a short string`)
     if (key.startsWith('feedDate') && value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error('Invalid date')
@@ -869,6 +873,32 @@ ipcMain.handle('opml:export', async () => {
     categories: (feed.categoryIds || []).map(id => names[id]).filter(Boolean),
   }))), 'utf8')
   return filePath
+})
+
+ipcMain.handle('config:export', async () => {
+  const [feeds, categories, views, settings] = await Promise.all([readFeeds(), readCategories(), readViews(), readSettings()])
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    defaultPath: 'mado-config.json',
+    filters: [{ name: 'JSON files', extensions: ['json'] }],
+  })
+  if (canceled || !filePath) return null
+  const payload = {
+    format: 'mado-config',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    feeds, categories, views, settings,
+  }
+  await writeFile(filePath, JSON.stringify(payload, null, 2), 'utf8')
+  return filePath
+})
+
+ipcMain.handle('updates:check', async () => checkForUpdates(app.getVersion()))
+ipcMain.handle('updates:open', async (_: IpcMainInvokeEvent, url: string) => {
+  const configured = configuredRelease()
+  if (!configured || typeof url !== 'string' || url !== configured.releaseUrl) {
+    throw new Error('No official release source is configured')
+  }
+  await openExternalUrl(url)
 })
 
 ipcMain.handle('app:reset', async () => {

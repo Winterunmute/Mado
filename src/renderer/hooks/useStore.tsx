@@ -47,6 +47,8 @@ interface StoreState {
   setSourceFilter: (id: string) => void
   setContentTypeFilter: (type: ContentType | 'all') => void
   setDateRange: (from: string, to: string) => void
+  setSavedSort: (order: 'newest' | 'oldest' | 'title') => void
+  setOnboardingComplete: (complete: boolean) => void
   clearFilters: () => void
 }
 
@@ -80,6 +82,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     feedSourceFilter: 'all',
     feedDateFrom: '',
     feedDateTo: '',
+    savedSort: 'newest',
+    onboardingComplete: false,
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -195,8 +199,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const markAllRead = useCallback(async (ids: string[]) => {
     try {
       const state = await api.articles.markAllRead(ids)
+      const idSet = new Set(ids)
       for (const id of ids) readOverrides.current[id] = state[id] === true
-      setArticles(prev => prev.map(a => ids.includes(keyOf(a)) ? { ...a, isRead: true } : a))
+      setArticles(prev => prev.map(a => idSet.has(keyOf(a)) ? { ...a, isRead: true } : a))
     } catch (e: any) { setError(`Could not mark articles read: ${e.message}`) }
   }, [])
 
@@ -281,6 +286,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setSourceFilter: (id) => handleSetSetting('feedSourceFilter', id),
     setContentTypeFilter,
     setDateRange,
+    setSavedSort: (order) => handleSetSetting('savedSort', order),
+    setOnboardingComplete: (complete) => handleSetSetting('onboardingComplete', complete),
     clearFilters,
     setSearchQuery,
     addFeed: handleAddFeed,
@@ -323,9 +330,10 @@ export function useFeeds() {
 }
 
 export function useSettings() {
-  const { settings, setTheme, setFeedDensity, setMessengerWidth, setMessengerVisible, setAutoRefreshInterval, setShowReadArticles, setTrayEnabled, setCloseToTray, setStartMinimized, setMessengerNotifications } = useStore()
+  const { settings, loading, setTheme, setFeedDensity, setMessengerWidth, setMessengerVisible, setAutoRefreshInterval, setShowReadArticles, setTrayEnabled, setCloseToTray, setStartMinimized, setMessengerNotifications, setOnboardingComplete } = useStore()
   return { 
     ...settings, 
+    loading,
     setTheme, 
     setFeedDensity, 
     setMessengerWidth, 
@@ -336,6 +344,7 @@ export function useSettings() {
     setCloseToTray,
     setStartMinimized,
     setMessengerNotifications,
+    setOnboardingComplete,
   }
 }
 

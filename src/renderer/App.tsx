@@ -5,12 +5,13 @@ import FeedArea from './components/FeedArea'
 import Settings from './components/Settings'
 import FeedManager from './components/FeedManager'
 import MessengerPanel from './components/MessengerPanel'
+import Onboarding from './components/Onboarding'
 import { api } from './lib/api'
 import type { ViewMode } from './types'
 
 function AppContent() {
   const [activeView, setActiveView] = useState<ViewMode>('feed')
-  const { messengerVisible, messengerWidth, setMessengerVisible } = useSettings()
+  const { messengerVisible, messengerWidth, setMessengerVisible, onboardingComplete, loading, setOnboardingComplete } = useSettings()
 
   useEffect(() => {
     const handler = () => setActiveView('sources')
@@ -25,6 +26,11 @@ function AppContent() {
     else if (action === 'toggle-messenger') setMessengerVisible(!messengerVisible)
     else window.dispatchEvent(new CustomEvent(`shortcut:${action}`))
   }), [messengerVisible, setMessengerVisible])
+
+  const finishOnboarding = (addSource: boolean) => {
+    setOnboardingComplete(true)
+    if (addSource) window.dispatchEvent(new CustomEvent('open-feed-manager'))
+  }
 
   const renderView = () => {
     switch (activeView) {
@@ -52,6 +58,7 @@ function AppContent() {
         />
         <MessengerPanel />
       </div>
+      {!loading && !onboardingComplete && <Onboarding onFinish={finishOnboarding} />}
     </div>
   )
 }

@@ -1,6 +1,6 @@
 {
   "name": "mado",
-  "version": "0.7.0",
+  "version": "0.9.0",
   "description": "Mado (窓) - Your window to the world. A personal desktop app combining RSS feeds and Facebook Messenger.",
   "type": "module",
   "main": "dist/main/index.js",
@@ -15,7 +15,9 @@
     "build:electron": "tsc -p tsconfig.electron.json && tsc -p tsconfig.electron-preload.json && node scripts/copy-preloads.mjs && node scripts/copy-assets.mjs",
     "preview": "vite preview",
     "lint": "eslint src --ext ts,tsx",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "benchmark": "node scripts/benchmark.mjs",
+    "dist:win": "npm run build && electron-builder --win nsis --x64"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
@@ -26,7 +28,7 @@
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "rss-parser": "^3.13.0",
-    "sanitize-html": "^2.11.0"
+    "sanitize-html": "^2.18.2"
   },
   "devDependencies": {
     "@types/node": "^20.14.12",
@@ -36,24 +38,49 @@
     "@vitejs/plugin-react": "^4.3.1",
     "concurrently": "^8.2.2",
     "cross-env": "^10.1.0",
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3",
+    "electron": "^45.4.1",
+    "electron-builder": "^26.18.0",
     "typescript": "^5.5.4",
     "vite": "^5.3.5",
     "wait-on": "^7.2.0"
   },
   "build": {
-    "appId": "com.mado.app",
+    "appId": "com.mado.desktop",
     "productName": "Mado",
+    "copyright": "Copyright © 2026 Mado",
     "directories": {
-      "output": "dist"
+      "output": "release"
     },
     "files": [
       "dist/**/*",
-      "package.json"
+      "package.json",
+      "!dist/**/*.map"
     ],
+    "extraMetadata": {
+      "version": "0.9.0"
+    },
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "artifactName": "Mado-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Mado",
+      "installerIcon": "assets/icon-small.ico",
+      "uninstallerIcon": "assets/icon-small.ico",
+      "deleteAppDataOnUninstall": false
     }
   }
 }

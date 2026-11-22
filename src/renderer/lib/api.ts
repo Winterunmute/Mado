@@ -1,4 +1,4 @@
-import type { Feed, Article, Settings, ReaderResult, ConversationTab, MessengerLocation, DesktopState, SourceType, Category, CustomFeedView, DiscoveryResult, OpmlImportSummary } from '../types'
+import type { Feed, Article, Settings, ReaderResult, ConversationTab, MessengerLocation, DesktopState, SourceType, Category, CustomFeedView, DiscoveryResult, OpmlImportSummary, UpdateCheckResult } from '../types'
 
 declare global {
   interface Window {
@@ -73,6 +73,13 @@ declare global {
       opml: {
         import: () => Promise<OpmlImportSummary | null>
         export: () => Promise<string | null>
+      }
+      config: {
+        export: () => Promise<string | null>
+      }
+      updates: {
+        check: () => Promise<UpdateCheckResult>
+        open: (url: string) => Promise<void>
       }
       shell: {
         openExternal: (url: string) => Promise<void>

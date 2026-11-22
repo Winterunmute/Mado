@@ -21,10 +21,15 @@ export interface SavedItem {
 
 const TYPES: SourceType[] = ['rss', 'youtube', 'reddit']
 const CONTENT: ContentType[] = ['article', 'video', 'post', 'image', 'link']
+const CONTROL_CHARS = new RegExp(
+  '[' + Array.from({ length: 32 }, (_, index) => String.fromCharCode(index))
+    .filter(character => character !== '\n' && character !== '\t').join('') + String.fromCharCode(127) + ']',
+  'g',
+)
 
 function text(value: unknown, max = 4000): string {
   if (typeof value !== 'string') return ''
-  return [...value].filter(c => c.charCodeAt(0) >= 32 || c === '\n' || c === '\t').join('').slice(0, max)
+  return value.replace(CONTROL_CHARS, '').slice(0, max)
 }
 
 function optional(value: unknown, max = 500): string | null {

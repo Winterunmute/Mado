@@ -103,6 +103,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
     import: () => ipcRenderer.invoke('opml:import'),
     export: () => ipcRenderer.invoke('opml:export'),
   },
+  config: {
+    export: () => ipcRenderer.invoke('config:export'),
+  },
+  updates: {
+    check: () => ipcRenderer.invoke('updates:check'),
+    open: (url: string) => ipcRenderer.invoke('updates:open', url),
+  },
   shell: {
     openExternal: (url: string) => ipcRenderer.invoke('shell:open-external', url),
   },

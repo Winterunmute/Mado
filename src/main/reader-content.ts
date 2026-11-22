@@ -1,6 +1,11 @@
 import sanitizeHtml from 'sanitize-html'
 import { isIP } from 'node:net'
 
+// Deterministic Electron verification serves fixtures from 127.0.0.1. Packaged
+// builds never set this variable, so production source/reader requests stay
+// restricted to public addresses.
+const allowLocalSources = process.env.MADO_ALLOW_LOCAL_SOURCES === '1'
+
 export function isPublicAddress(address: string): boolean {
   const ip = address.toLowerCase().replace(/^\[|\]$/g, '')
   if (isIP(ip) === 4) {
@@ -20,6 +25,7 @@ export function publicWebUrl(value: string, base?: string): string | null {
     const url = new URL(value, base)
     const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, '')
     if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password) return null
+    if (allowLocalSources) return url.toString()
     if (isIP(host) ? !isPublicAddress(host) : (!host.includes('.') || /(?:^|\.)(?:localhost|local|internal|test|invalid)$/.test(host))) return null
     return url.toString()
   } catch { return null }

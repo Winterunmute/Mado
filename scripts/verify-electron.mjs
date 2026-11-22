@@ -1,5 +1,7 @@
 // Runs the real production renderer, preload, IPC and stores in an isolated profile.
 // Never reads the user's Messenger cookies, credentials or conversations.
+// Allow local fixture servers inside this harness only; packaged builds do not set it.
+process.env.MADO_ALLOW_LOCAL_SOURCES = '1'
 import { app, BrowserWindow, shell, session, screen, nativeImage } from 'electron'
 import http from 'node:http'
 import fs from 'node:fs/promises'
@@ -105,7 +107,7 @@ https.get = function(url, options, callback) {
 syncBuiltinESMExports()
 await fs.writeFile(path.join(profile, 'mado', 'feeds.json'), JSON.stringify({ feeds: [{ url: feedUrl, title: 'Verification News', enabled: true, lastFetched: null }] }))
 if (!process.env.MADO_VERIFY_RESTART) {
-  await fs.writeFile(path.join(profile, 'mado', 'settings.json'), JSON.stringify({ settings: { theme: 'dark', showReadArticles: true, messengerVisible: true, messengerWidth: 420 } }))
+  await fs.writeFile(path.join(profile, 'mado', 'settings.json'), JSON.stringify({ settings: { theme: 'dark', showReadArticles: true, messengerVisible: true, messengerWidth: 420, onboardingComplete: true } }))
   await fs.writeFile(path.join(profile, 'mado', 'read-state.json'), JSON.stringify({ state: {} }))
   await fs.writeFile(path.join(profile, 'mado', 'messenger-tabs.json'), JSON.stringify({ tabs: [] }))
   await fs.writeFile(path.join(profile, 'mado', 'categories.json'), JSON.stringify({ version: 1, categories: [] }))
@@ -122,6 +124,8 @@ await import('../dist/main/index.js')
 console.log('Imported application')
 await app.whenReady()
 console.log('Electron ready')
+const { readSettings, writeSettings } = await import('../dist/main/store.js')
+await writeSettings({ ...await readSettings(), onboardingComplete: true })
 let win
 for (let i = 0; i < 100; i++) {
   win = BrowserWindow.getAllWindows()[0]
@@ -554,6 +558,8 @@ try {
     await wait("!!document.querySelector('.article-card') && !!document.querySelector('[aria-label=\"Show saved items\"]')")
     check('saved filter shows saved content after restart', await js("document.querySelectorAll('.article-card').length === 1 && !!document.querySelector('.article-card.saved')"))
     await js("window.electronAPI.settings.set('feedFilterMode', 'all')")
+    win.webContents.reload()
+    await wait("!!document.querySelector('.feed-area')")
     await js("window.electronAPI.views.create({ name: 'Tech Desk', categoryIds: [], sourceIds: [], contentTypes: [], typeFilter: 'all' })")
     check('custom feed views persist and can be renamed/deleted', await js(`window.electronAPI.views.get().then(views => {
       const id = views[0]?.id;
@@ -566,7 +572,36 @@ try {
     await wait("!!document.querySelector('.organize-section')")
     check('Sources exposes categories, custom feeds and OPML actions', await js("!!document.querySelector('[aria-label=\"New category name\"]') && !!document.querySelector('[aria-label=\"New feed name\"]') && !!document.querySelector('[aria-label=\"Import OPML\"]') && !!document.querySelector('[aria-label=\"Export OPML\"]')"))
     await fs.writeFile(path.join(profile, 'v07-sources.png'), (await win.webContents.capturePage()).toPNG())
+    await click('[aria-label="Home"]')
+    await wait("!!document.querySelector('.feed-area')")
+    await click('[aria-label="Advanced filters"]')
+    check('advanced filters expose date presets', await js("document.querySelectorAll('[aria-label=\"Date presets\"] button').length === 3"))
+    check('config export API is available', await js("typeof window.electronAPI.config.export === 'function'"))
+    await click('[aria-label="Show saved items"]')
+    await wait("document.querySelector('.saved-filter-btn')?.getAttribute('aria-pressed') === 'true'")
+    await wait("!!document.querySelector('[aria-label=\"Saved sort\"]')")
+    check('saved view exposes sorting control', await js("document.querySelector('[aria-label=\"Saved sort\"]').options.length === 3"))
+    await click('[aria-label="Show saved items"]')
     check('saved item survives unsave round trip', await js(`(async () => { const items = await window.electronAPI.articles.get(); await window.electronAPI.saved.unsave(items[0].id); const next = await window.electronAPI.articles.get(); return next.some(x => x.saved) === false })()`))
+
+    // V0.9 first-run and update checks.
+    await js("window.electronAPI.settings.set('onboardingComplete', false)")
+    win.webContents.reload()
+    await wait("!!document.querySelector('[role=\"dialog\"]')")
+    check('first-run guide introduces feed, messenger and rules', await js("document.querySelectorAll('.onboarding-concepts article').length === 3"))
+    check('first-run guide moves focus into the dialog', await js("document.activeElement?.closest('[role=\"dialog\"]') !== null"))
+    await click('.onboarding-secondary')
+    await wait("!document.querySelector('[role=\"dialog\"]')")
+    check('first-run guide can be skipped and remembered', await js("window.electronAPI.settings.get().then(s => s.onboardingComplete === true)"))
+    await click('[aria-label="Settings"]')
+    await wait("!!document.querySelector('[aria-label=\"Check for updates\"]')")
+    check('update check reports no configured endpoint', await js("window.electronAPI.updates.check().then(r => r.configured === false && r.available === false && r.releaseUrl === null)"))
+    await click('[aria-label="Check for updates"]')
+    await wait("!!document.querySelector('.update-result')")
+    check('update result is shown in Settings', await js("document.querySelector('.update-result').textContent.includes('No official release source')"))
+    await click('[aria-label="Reopen welcome guide"]')
+    await wait("!!document.querySelector('[role=\"dialog\"]')")
+    await click('.onboarding-secondary')
   }
   await delay(400) // Finish queued preference writes before the restart check.
   await fs.writeFile(path.join(profile, 'results.json'), JSON.stringify({ checks: logs, external }, null, 2))

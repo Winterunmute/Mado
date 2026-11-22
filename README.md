@@ -1,6 +1,6 @@
 # Mado (窓) — Your Window to the World
 
-A personal desktop application combining a unified, personally curated feed (RSS/Atom, YouTube and Reddit) with Facebook Messenger. V0.7 adds user-defined categories, saved content, custom feed views, combined filters, OPML and source discovery.
+A personal desktop application combining a unified, personally curated feed (RSS/Atom, YouTube and Reddit) with Facebook Messenger. V0.9 prepares a local Windows release candidate with an NSIS installer, first-run guidance, a safe update-check pattern and release documentation.
 
 ## Features
 
@@ -8,7 +8,10 @@ A personal desktop application combining a unified, personally curated feed (RSS
 - **Categories**: create, rename and delete categories; assign sources to several categories; filter by category
 - **Saved Content**: save articles, videos and posts for later with read state kept separate; saved metadata survives source removal
 - **Custom Feed Views**: named views based on categories, sources and content types, alongside All feed and Saved
-- **Advanced Filters**: combine All/Unread/Saved, category, source type, source, content type, search and date range
+- **Advanced Filters**: combine All/Unread/Saved, category, source type, source, content type, search and date range, with Today/7-day/30-day presets
+- **Saved Sorting**: sort Saved items by newest, oldest or title; large feeds render incrementally
+- **First-Run Guide**: brief introduction to Your Feed, Your Messenger and Your Rules; skippable and reopenable from Settings
+- **Safe Update Check**: shows the installed version and reports when no trusted release source is configured; never auto-installs
 - **OPML**: import/export RSS subscriptions with folder/category information and duplicate reporting
 - **Source Discovery**: find advertised RSS/Atom feeds from a website URL; platform URLs route to existing adapters
 - **Source Adapters**: Extensible local adapters for RSS/Atom, YouTube channels and Reddit communities
@@ -23,6 +26,7 @@ A personal desktop application combining a unified, personally curated feed (RSS
 - **Dark/Light Theme**: Toggle between themes with persistence
 - **Facebook Messenger Panel**: Embedded Messenger with resize/collapse, conversation tabs, and a minimal header
 - **Conversation Tabs**: Save, switch, rename, pin and close Messenger conversation shortcuts locally; pinned/open tabs persist across restarts
+- **Configuration Export**: Save subscriptions, categories, saved items, custom feeds and preferences to a JSON file without Messenger credentials
 - **Reset All Data**: Confirmation-gated local reset of sources, read state, preferences, tabs and window state; Messenger session is preserved
 - **Local Storage**: All data stored locally using electron-store (no cloud, no accounts)
 - **Window Memory**: Window size, position and maximized state are restored safely across displays
@@ -36,6 +40,15 @@ A personal desktop application combining a unified, personally curated feed (RSS
 *[Add screenshots here after running the app]*
 
 ## Quick Start
+
+### Windows installer (V0.9 release candidate)
+
+```bash
+npm install
+npm run dist:win
+```
+
+The installer is written to `release/Mado-Setup-0.9.0.exe`. It installs per user, creates Start Menu and optional desktop shortcuts, and deliberately keeps application data under `%APPDATA%\\Mado` on uninstall. This build is not publicly released or code-signed; Windows SmartScreen may warn until a trusted signing strategy is in place.
 
 ### Prerequisites
 
@@ -76,6 +89,8 @@ npm run preview
 | `npm run preview` | Preview production build |
 | `npm run lint` | Run ESLint on source files |
 | `npm run typecheck` | Type-check without emitting |
+| `npm run benchmark` | Run deterministic performance fixture |
+| `npm run dist:win` | Build renderer/main and create the NSIS installer |
 
 ## Project Structure
 
@@ -130,13 +145,13 @@ Mado/
 
 ## Technology Stack
 
-- **Electron 31** — Desktop app framework
+- **Electron 45** — Desktop app framework
 - **React 19** — UI library
 - **TypeScript 5.5** — Type safety
 - **Vite 5** — Build tool & dev server
 - **electron-store 10** — Local JSON persistence
 - **rss-parser 3.13** — RSS/Atom feed parsing
-- **sanitize-html 2.11** — XSS-safe content sanitization
+- **sanitize-html 2.18** — XSS-safe content sanitization
 - **date-fns 3.6** — Date formatting
 - **lucide-react 0.441** — Icons
 
@@ -171,8 +186,8 @@ V0.7 adds user-controlled organization without changing chronological order:
 
 - **Categories** are created in Sources and assigned per source. Deleting a category never deletes a subscription.
 - **Saved** is available from the sidebar, feed view selector or Saved filter button. Saving does not mark an item read.
-- **Custom Feeds** are created in Sources from selected categories, sources and an optional content type. Switch views from the sidebar or feed header.
-- **Advanced Filters** are behind the sliders button; active filters appear as chips and **Clear Filters** restores the default view.
+- **Custom Feeds** are created in Sources from selected categories, sources, an optional content type and an optional provider (RSS/YouTube/Reddit). Switch views from the sidebar or feed header.
+- **Advanced Filters** are behind the sliders button; active filters appear as chips, Today/7-day/30-day presets are available, and **Clear Filters** restores the default view.
 - **OPML** import/export is available in Sources. Only RSS/Atom subscriptions are exported; native YouTube/Reddit sources are not misrepresented as RSS.
 - **Discover** (magnifier in the RSS Add Source field) lists RSS/Atom feeds advertised by a website. YouTube and Reddit URLs are recognized automatically.
 
@@ -211,6 +226,8 @@ Conversation tabs are local shortcuts that navigate one shared Messenger session
 - Some Messenger features (voice/video calls, certain reactions) may not work
 - If embedding fails, use "Open in Browser" button as fallback
 - Login state persists in the `persist:messenger` partition
+- The V0.9 installer is local-only and unsigned; SmartScreen and clean-machine installation require manual verification
+- No official update endpoint is configured, so Check for Updates reports unavailable
 
 ## Settings
 
@@ -225,9 +242,12 @@ Access via the **Settings** sidebar item:
 | Auto Refresh | Off / 5min / 15min / 30min / 1hr |
 | Show Read Articles | On / Off |
 | Manage Sources | Opens the Sources view |
+| Export Mado Configuration | Saves subscriptions, categories, saved items, custom feeds and preferences |
 | Tray / Close to tray / Start minimized | Desktop options (off by default) |
 | Messenger activity alerts | On / Off (no message previews) |
 | Keyboard shortcuts | Reference list in Settings |
+| Check for Updates | Reports that no official release source is configured in this build |
+| Reopen welcome guide | Shows the first-run introduction again |
 
 ## Data & Privacy
 
@@ -239,7 +259,7 @@ Access via the **Settings** sidebar item:
   - `saved.json` — Saved content snapshots
   - `categories.json` — User-defined categories
   - `feed-views.json` — Custom feed definitions
-  - `settings.json` — App preferences and persisted feed filters
+  - `settings.json` — App preferences, persisted feed filters and Saved sort order
   - `messenger-tabs.json` — Saved/pinned conversation shortcuts and local labels
   - `window-state.json` — Window size, position and maximized state
   - `messenger/` — Facebook cookies/session (Electron partition)
@@ -248,14 +268,11 @@ Access via the **Settings** sidebar item:
 ## Building for Distribution
 
 ```bash
-# Build production artifacts
-npm run build
-
-# Create Windows installer (NSIS)
-npx electron-builder --win nsis
+# Build renderer + main, then create the Windows NSIS installer
+npm run dist:win
 ```
 
-Output: `dist/Mado Setup 0.7.0.exe`
+Output: `release/Mado-Setup-0.9.0.exe`. The package contains only compiled application files and runtime dependencies; reports, tests, verification profiles and Git data are excluded. See `RELEASE_CHECKLIST.md` for the V1.0 signing and publication gates.
 
 ## Troubleshooting
 
@@ -275,9 +292,18 @@ Output: `dist/Mado Setup 0.7.0.exe`
 - Delete `node_modules` and `package-lock.json`, then `npm install`
 - Ensure Node.js 20+ is active (`node --version`)
 
+## Release Documentation
+
+- `MADO-V0.7-REPORT.md` — organization features and verification.
+- `MADO-V0.8-REPORT.md` — performance, stability and dependency upgrades.
+- `MADO-V0.9-REPORT.md` — distribution preparation and release-candidate verification.
+- `PRIVACY.md` — local storage and external connections.
+- `THIRD_PARTY_NOTICES.md` — dependency licenses and trademark notice.
+- `RELEASE_CHECKLIST.md` — remaining V1.0 publication gates.
+
 ## License
 
-MIT — Personal project, not affiliated with Meta/Facebook.
+Historically described as MIT — Personal project, not affiliated with Meta/Facebook. No `LICENSE` file has been added and the original code license should be explicitly confirmed before public source publication; see `THIRD_PARTY_NOTICES.md`.
 
 ## Acknowledgments
 

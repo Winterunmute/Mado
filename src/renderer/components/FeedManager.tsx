@@ -23,6 +23,7 @@ export default function FeedManager() {
   const [viewSourceIds, setViewSourceIds] = useState<string[]>([])
   const [viewCategoryIds, setViewCategoryIds] = useState<string[]>([])
   const [viewContentType, setViewContentType] = useState<ContentType | 'all'>('all')
+  const [viewTypeFilter, setViewTypeFilter] = useState<SourceType | 'all'>('all')
 
   const sourceOptions: { type: SourceType; label: string; icon: typeof Rss; placeholder: string }[] = [
     { type: 'rss', label: 'RSS / Website', icon: Rss, placeholder: 'https://example.com/feed.xml' },
@@ -119,12 +120,13 @@ export default function FeedManager() {
       categoryIds: viewCategoryIds,
       sourceIds: viewSourceIds,
       contentTypes: viewContentType === 'all' ? [] : [viewContentType],
-      typeFilter: 'all',
+      typeFilter: viewTypeFilter,
     })
     setNewViewName('')
     setViewCategoryIds([])
     setViewSourceIds([])
     setViewContentType('all')
+    setViewTypeFilter('all')
   }
 
   const handleDiscover = async () => {
@@ -297,6 +299,14 @@ export default function FeedManager() {
                   <option value="post">Posts</option>
                   <option value="image">Images</option>
                   <option value="link">Links</option>
+                </select>
+              </label>
+              <label>Provider
+                <select value={viewTypeFilter} aria-label="Custom feed provider" onChange={e => setViewTypeFilter(e.target.value as SourceType | 'all')}>
+                  <option value="all">All providers</option>
+                  <option value="rss">RSS</option>
+                  <option value="youtube">YouTube</option>
+                  <option value="reddit">Reddit</option>
                 </select>
               </label>
             </div>

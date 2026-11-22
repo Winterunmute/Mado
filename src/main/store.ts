@@ -57,6 +57,8 @@ const defaultSettings: Settings = {
   feedSourceFilter: 'all',
   feedDateFrom: '',
   feedDateTo: '',
+  savedSort: 'newest',
+  onboardingComplete: false,
 }
 
 const feedStore = new Store<Record<string, any>>({
@@ -166,7 +168,7 @@ export const ALLOWED_SETTING_KEYS = [
   'autoRefreshInterval', 'showReadArticles', 'trayEnabled',
   'closeToTray', 'startMinimized', 'messengerNotifications',
   'feedViewId', 'feedFilterMode', 'feedCategoryFilter', 'feedSourceTypeFilter',
-  'feedSourceFilter', 'feedDateFrom', 'feedDateTo',
+  'feedSourceFilter', 'feedDateFrom', 'feedDateTo', 'savedSort', 'onboardingComplete',
 ] as const
 
 export function isAllowedSettingKey(key: string): boolean {

@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { 
   Palette, 
   Layout, 
@@ -10,12 +10,16 @@ import {
   CheckCircle,
   PanelTop,
   Bell,
-  Keyboard
+  Keyboard,
+  Download,
+  HelpCircle,
+  ExternalLink
 } from 'lucide-react'
 import { SHORTCUT_HELP } from '../../main/shortcuts'
 import { api } from '../lib/api'
 import { useSettings } from '../hooks/useStore'
 import { classNames } from '../lib/utils'
+import type { UpdateCheckResult } from '../types'
 import './Settings.css'
 
 export default function Settings() {
@@ -39,7 +43,8 @@ export default function Settings() {
     setTrayEnabled,
     setCloseToTray,
     setStartMinimized,
-    setMessengerNotifications
+    setMessengerNotifications,
+    setOnboardingComplete
   } = useSettings()
 
   const handleResetData = async () => {
@@ -52,6 +57,36 @@ export default function Settings() {
     } catch (e) {
       console.error('Failed to reset:', e)
       alert('Failed to reset data')
+    }
+  }
+
+  const handleExportConfig = async () => {
+    try {
+      const path = await api.config.export()
+      if (path) alert(`Mado configuration exported to:\n${path}`)
+    } catch (e) {
+      alert('Could not export configuration')
+    }
+  }
+
+  const [updateResult, setUpdateResult] = useState<UpdateCheckResult | null>(null)
+  const [checkingUpdates, setCheckingUpdates] = useState(false)
+
+  const handleCheckUpdates = async () => {
+    setCheckingUpdates(true)
+    try {
+      setUpdateResult(await api.updates.check())
+    } catch {
+      setUpdateResult({
+        configured: true,
+        available: false,
+        currentVersion: '0.9.0',
+        latestVersion: null,
+        releaseUrl: null,
+        message: 'Update check failed.',
+      })
+    } finally {
+      setCheckingUpdates(false)
     }
   }
 
@@ -291,16 +326,24 @@ export default function Settings() {
             <ul className="data-list">
               <li><CheckCircle size={14} /> RSS feed subscriptions</li>
               <li><CheckCircle size={14} /> Article read/unread state</li>
+              <li><CheckCircle size={14} /> Saved content, categories and custom feeds</li>
               <li><CheckCircle size={14} /> App preferences</li>
               <li><CheckCircle size={14} /> Messenger session (Facebook's cookies)</li>
             </ul>
           </div>
 
           <div className="setting-group">
+            <button className="btn secondary" onClick={() => void handleExportConfig()} aria-label="Export Mado configuration">
+              <Download size={16} /> Export Mado Configuration
+            </button>
+            <p className="danger-hint">Exports subscriptions, categories, saved items, custom feeds and preferences. Never includes Messenger cookies or messages.</p>
+          </div>
+
+          <div className="setting-group">
             <button className="btn danger" onClick={handleResetData}>
               <Trash2 size={16} /> Reset All Data
             </button>
-            <p className="danger-hint">Deletes feeds, read state, and settings. Cannot be undone.</p>
+            <p className="danger-hint">Deletes feeds, categories, saved items, custom feeds, read state and settings. Cannot be undone.</p>
           </div>
         </section>
 
@@ -309,14 +352,32 @@ export default function Settings() {
             <div className="about-logo">
               <span>窓</span>
             </div>
-            <h3>Mado v0.7.0</h3>
+            <h3>Mado v0.9.0</h3>
             <p className="about-tagline">Your window to the world.</p>
             <p className="about-desc">
-              A personal desktop application combining curated RSS feeds with Facebook Messenger.
+              A personal desktop application combining curated RSS, YouTube and Reddit feeds with Facebook Messenger.
               Built with Electron, React, and TypeScript.
             </p>
+            <div className="about-updates">
+              <button className="btn secondary" onClick={() => void handleCheckUpdates()} disabled={checkingUpdates} aria-label="Check for updates">
+                <RefreshCw size={15} className={checkingUpdates ? 'spin' : ''} /> {checkingUpdates ? 'Checking…' : 'Check for Updates'}
+              </button>
+              {updateResult && (
+                <div className="update-result" role="status">
+                  <span>{updateResult.message}</span>
+                  {updateResult.available && updateResult.releaseUrl && (
+                    <button className="btn link" onClick={() => void api.updates.open(updateResult.releaseUrl!)}>
+                      Open release page <ExternalLink size={13} aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            <button className="btn link about-help" onClick={() => setOnboardingComplete(false)} aria-label="Reopen welcome guide">
+              <HelpCircle size={15} /> Reopen welcome guide
+            </button>
             <div className="about-links">
-              <a href="https://github.com" target="_blank" rel="noopener noreferrer">GitHub</a>
+              <a href="https://github.com/Winterunmute/Mado" target="_blank" rel="noopener noreferrer">GitHub</a>
               <span className="divider" aria-hidden="true">·</span>
               <a href="https://electronjs.org" target="_blank" rel="noopener noreferrer">Electron</a>
               <span className="divider" aria-hidden="true">·</span>

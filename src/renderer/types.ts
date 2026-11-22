@@ -76,6 +76,15 @@ export interface ReaderResult {
   notice: string | null
 }
 
+export interface UpdateCheckResult {
+  configured: boolean
+  available: boolean
+  currentVersion: string
+  latestVersion: string | null
+  releaseUrl: string | null
+  message: string
+}
+
 export interface Settings {
   theme: 'dark' | 'light'
   feedDensity: 'compact' | 'comfortable' | 'spacious'
@@ -94,6 +103,8 @@ export interface Settings {
   feedSourceFilter: string
   feedDateFrom: string
   feedDateTo: string
+  savedSort: 'newest' | 'oldest' | 'title'
+  onboardingComplete: boolean
   [key: string]: any
 }
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useCallback, useEffect, useLayoutEffect, useMemo, useDeferredValue, useRef } from 'react'
 import { 
   RefreshCw, 
   Filter, 
@@ -20,6 +20,14 @@ import ArticleCard from './ArticleCard'
 import ArticleReader from './ArticleReader'
 import './FeedArea.css'
 
+function localDate(daysAgo = 0): string {
+  const date = new Date()
+  date.setDate(date.getDate() - daysAgo)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
 export default function FeedArea() {
   const { articles, loading, error, refetch, setFilter, filter, setSearchQuery, searchQuery } = useArticles()
   const { feedDensity, setFeedDensity } = useSettings()
@@ -28,6 +36,7 @@ export default function FeedArea() {
   const { markAllRead, markRead, categories, views, settings, contentTypeFilter } = store
   const [selectedArticle, setSelectedArticle] = useState<Article | null>(null)
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [visibleCount, setVisibleCount] = useState(100)
   const sourceTypeFilter = (settings.feedSourceTypeFilter || 'all') as SourceType | 'all'
   const sourceFilter = settings.feedSourceFilter || 'all'
   const categoryFilter = settings.feedCategoryFilter || 'all'
@@ -54,9 +63,10 @@ export default function FeedArea() {
   const openSources = () => window.dispatchEvent(new CustomEvent('open-feed-manager'))
   const [showDensityMenu, setShowDensityMenu] = useState(false)
 
-  const filterOptions = {
+  const deferredQuery = useDeferredValue(searchQuery)
+  const filterOptions = useMemo(() => ({
     mode: filter,
-    query: searchQuery,
+    query: deferredQuery,
     categoryId: categoryFilter,
     sourceType: sourceTypeFilter,
     sourceId: sourceFilter,
@@ -64,9 +74,19 @@ export default function FeedArea() {
     dateFrom: settings.feedDateFrom,
     dateTo: settings.feedDateTo,
     view: activeView,
-  }
-  const filteredArticles = selectArticlesWithOptions(articles, filterOptions)
-  const filtersActive = hasActiveFilters(filterOptions)
+  }), [filter, deferredQuery, categoryFilter, sourceTypeFilter, sourceFilter, contentTypeFilter, settings.feedDateFrom, settings.feedDateTo, activeView])
+  const filteredArticles = useMemo(() => selectArticlesWithOptions(articles, filterOptions), [articles, filterOptions])
+  const filtersActive = useMemo(() => hasActiveFilters(filterOptions), [filterOptions])
+  const savedMode = filter === 'saved' || viewId === 'saved'
+  const sortedArticles = useMemo(() => {
+    if (!savedMode) return filteredArticles
+    const sorted = [...filteredArticles]
+    if (settings.savedSort === 'title') sorted.sort((a, b) => a.title.localeCompare(b.title))
+    else if (settings.savedSort === 'oldest') sorted.sort((a, b) => new Date(a.pubDate).getTime() - new Date(b.pubDate).getTime())
+    else sorted.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime())
+    return sorted
+  }, [filteredArticles, savedMode, settings.savedSort])
+  useEffect(() => { setVisibleCount(100) }, [filterOptions])
 
   const handleRefresh = useCallback(async () => {
     await refetch()
@@ -90,8 +110,8 @@ export default function FeedArea() {
   }, [handleRefresh])
 
   const handleMarkAllRead = useCallback(async () => {
-    await markAllRead(filteredArticles.map(a => a.id || a.link))
-  }, [markAllRead, filteredArticles])
+    await markAllRead(sortedArticles.map(a => a.id || a.link))
+  }, [markAllRead, sortedArticles])
 
   const densityOptions = [
     { value: 'compact', label: 'Compact' },
@@ -103,7 +123,7 @@ export default function FeedArea() {
     <main className="feed-area" role="main">
       <header className="feed-header" hidden={!!selectedArticle}>
         <div className="feed-header-left">
-          <h1 className="feed-title">Feed</h1>
+          <h1 className="feed-title">{activeView ? activeView.name : viewId === 'saved' ? 'Saved' : 'Feed'}</h1>
           <span className="article-count">{filteredArticles.length} article{filteredArticles.length !== 1 ? 's' : ''}</span>
         </div>
         <div className="feed-header-right">
@@ -265,6 +285,22 @@ export default function FeedArea() {
           </select>
           <label>From <input type="date" aria-label="Published from" value={settings.feedDateFrom} onChange={e => store.setDateRange(e.target.value, settings.feedDateTo)} /></label>
           <label>To <input type="date" aria-label="Published to" value={settings.feedDateTo} onChange={e => store.setDateRange(settings.feedDateFrom, e.target.value)} /></label>
+          <div className="date-presets" role="group" aria-label="Date presets">
+            <button onClick={() => store.setDateRange(localDate(0), localDate(0))}>Today</button>
+            <button onClick={() => store.setDateRange(localDate(6), localDate(0))}>Last 7 Days</button>
+            <button onClick={() => store.setDateRange(localDate(29), localDate(0))}>Last 30 Days</button>
+          </div>
+          {savedMode && (
+            <select
+              aria-label="Saved sort"
+              value={settings.savedSort}
+              onChange={e => store.setSavedSort(e.target.value as 'newest' | 'oldest' | 'title')}
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="title">Title A–Z</option>
+            </select>
+          )}
           <button className="clear-filters" onClick={store.clearFilters} disabled={!filtersActive}>Clear Filters</button>
         </div>
       )}
@@ -313,7 +349,7 @@ export default function FeedArea() {
           </div>
         ) : (
           <>
-            {filteredArticles.map((article) => (
+            {sortedArticles.slice(0, visibleCount).map((article) => (
               <ArticleCard
                 key={article.id || `${article.feedUrl}:${article.link}`}
                 article={article}
@@ -321,9 +357,16 @@ export default function FeedArea() {
                 onOpen={openArticle}
               />
             ))}
-            <div className="feed-end">
-              <span>You're all caught up</span>
-            </div>
+            {sortedArticles.length > visibleCount ? (
+              <div className="feed-more">
+                <button onClick={() => setVisibleCount(count => count + 100)}>Show 100 more</button>
+                <span>{visibleCount} of {sortedArticles.length}</span>
+              </div>
+            ) : (
+              <div className="feed-end">
+                <span>You're all caught up</span>
+              </div>
+            )}
           </>
         )}
       </div>
