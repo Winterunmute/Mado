@@ -19,7 +19,7 @@
     "lint": "eslint src --ext ts,tsx",
     "typecheck": "tsc --noEmit",
     "benchmark": "node scripts/benchmark.mjs",
-    "dist:win": "npm run build && electron-builder --win nsis --x64"
+    "dist:win": "npm run build && electron-builder --win nsis --x64 --publish never"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
