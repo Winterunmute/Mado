@@ -2,6 +2,8 @@
 // Never reads the user's Messenger cookies, credentials or conversations.
 // Allow local fixture servers inside this harness only; packaged builds do not set it.
 process.env.MADO_ALLOW_LOCAL_SOURCES = '1'
+// Keep GUI verification deterministic; production builds use the official URL.
+process.env.MADO_RELEASES_API = 'https://example.invalid/latest'
 import { app, BrowserWindow, shell, session, screen, nativeImage } from 'electron'
 import http from 'node:http'
 import fs from 'node:fs/promises'

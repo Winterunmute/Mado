@@ -36,4 +36,4 @@ Mado (窓) is an independent, unofficial personal desktop application. It is not
 
 ## Open-source licensing note
 
-The README has historically described the project as MIT licensed, but no `LICENSE` file has been added and no explicit licensing decision was made during V0.9. Before publishing source code publicly, the project owner should confirm the intended license, add the matching license file and review platform terms relating to Messenger integration. This notice does not grant rights to Mado's original source code.
+Mado's original source code is licensed under the MIT License; see `LICENSE`. This decision was confirmed for V1.0. Third-party packages and artwork retain their own licenses as listed above. Mado is independent and unofficial, and nothing here grants rights to Meta/Facebook, YouTube/Google or Reddit trademarks or services.

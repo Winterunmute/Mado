@@ -28,9 +28,23 @@ export function resolveRedditCommunity(input: string): ResolvedRedditCommunity {
 function build(name: string): ResolvedRedditCommunity {
   return {
     name,
-    feedUrl: `https://www.reddit.com/r/${name}/new/.rss`,
+    feedUrl: `https://www.reddit.com/r/${name}/.rss`,
     communityUrl: `https://www.reddit.com/r/${name}/`,
   }
+}
+
+export function redditFeedError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error)
+  if (/429|too many requests|rate.?limit/i.test(message)) {
+    return 'Reddit is rate-limiting this network. The subscription was kept; try again later or open the community on Reddit.'
+  }
+  if (/404|not found/i.test(message)) {
+    return 'Reddit did not provide a feed for this community from this network. The subscription was kept; open the community on Reddit to check it.'
+  }
+  if (/enotfound|econnreset|etimedout|timeout|aborted|fetch failed|network/i.test(message)) {
+    return 'Reddit could not be reached right now. The subscription was kept and Mado will retry on refresh.'
+  }
+  return 'Reddit is not providing feed data right now. The subscription was kept; use Open on Reddit if no posts appear.'
 }
 
 function excerpt(item: FeedItem): string {

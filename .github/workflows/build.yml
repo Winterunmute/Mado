@@ -1,0 +1,52 @@
+name: Build and Verify
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Package Windows installer
+        run: npm run dist:win
+
+      - name: Verify installer
+        shell: pwsh
+        run: |
+          $installer = "release/Mado-Setup-$(node -p "require('./package.json').version").exe"
+          if (-not (Test-Path $installer)) { throw "Missing installer: $installer" }
+          Get-Item $installer | Select-Object Name,Length
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mado-windows-installer
+          path: release/Mado-Setup-*.exe
+          if-no-files-found: error

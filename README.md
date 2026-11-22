@@ -1,6 +1,13 @@
 # Mado (窓) — Your Window to the World
 
-A personal desktop application combining a unified, personally curated feed (RSS/Atom, YouTube and Reddit) with Facebook Messenger. V0.9 prepares a local Windows release candidate with an NSIS installer, first-run guidance, a safe update-check pattern and release documentation.
+A personal desktop application combining a unified, personally curated feed (RSS/Atom, YouTube and Reddit) with Facebook Messenger. V1.0 is the first public Windows release.
+
+## Download for Windows
+
+- [Latest GitHub Release](https://github.com/Winterunmute/Mado/releases/latest)
+- [Mado Setup 1.0.0.exe](https://github.com/Winterunmute/Mado/releases/download/v1.0.0/Mado-Setup-1.0.0.exe)
+
+The installer is unsigned by default; Windows SmartScreen may show a warning. Verify the SHA-256 in `SHA256SUMS.txt` on the release page.
 
 ## Features
 
@@ -48,11 +55,11 @@ npm install
 npm run dist:win
 ```
 
-The installer is written to `release/Mado-Setup-0.9.0.exe`. It installs per user, creates Start Menu and optional desktop shortcuts, and deliberately keeps application data under `%APPDATA%\\Mado` on uninstall. This build is not publicly released or code-signed; Windows SmartScreen may warn until a trusted signing strategy is in place.
+The installer is written to `release/Mado-Setup-1.0.0.exe`. It installs per user, creates Start Menu and optional desktop shortcuts, and deliberately keeps application data under `%APPDATA%\\Mado` on uninstall. This build is not code-signed; Windows SmartScreen may warn until a trusted signing strategy is in place.
 
 ### Prerequisites
 
-- **Node.js 20+** (LTS recommended)
+- **Node.js 22 LTS** (recommended)
 - **Windows 11** (tested)
 - **Git** (for cloning)
 
@@ -272,7 +279,7 @@ Access via the **Settings** sidebar item:
 npm run dist:win
 ```
 
-Output: `release/Mado-Setup-0.9.0.exe`. The package contains only compiled application files and runtime dependencies; reports, tests, verification profiles and Git data are excluded. See `RELEASE_CHECKLIST.md` for the V1.0 signing and publication gates.
+Output: `release/Mado-Setup-1.0.0.exe`. The package contains only compiled application files and runtime dependencies; reports, tests, verification profiles and Git data are excluded. See `RELEASE_CHECKLIST.md` for ongoing signing and publication gates.
 
 ## Troubleshooting
 
@@ -290,20 +297,20 @@ Output: `release/Mado-Setup-0.9.0.exe`. The package contains only compiled appli
 
 ### Build fails
 - Delete `node_modules` and `package-lock.json`, then `npm install`
-- Ensure Node.js 20+ is active (`node --version`)
+- Ensure Node.js 22 LTS is active (`node --version`)
 
 ## Release Documentation
 
-- `MADO-V0.7-REPORT.md` — organization features and verification.
-- `MADO-V0.8-REPORT.md` — performance, stability and dependency upgrades.
-- `MADO-V0.9-REPORT.md` — distribution preparation and release-candidate verification.
+- `ARCHITECTURE.md` — process boundaries, storage and security model.
+- `DEVELOPMENT.md` — local setup, test suites and release procedure.
 - `PRIVACY.md` — local storage and external connections.
 - `THIRD_PARTY_NOTICES.md` — dependency licenses and trademark notice.
-- `RELEASE_CHECKLIST.md` — remaining V1.0 publication gates.
+- `RELEASE_CHECKLIST.md` — ongoing release gates.
+- `MADO-V1.0-RELEASE-REPORT.md` — final publication results.
 
 ## License
 
-Historically described as MIT — Personal project, not affiliated with Meta/Facebook. No `LICENSE` file has been added and the original code license should be explicitly confirmed before public source publication; see `THIRD_PARTY_NOTICES.md`.
+[MIT](LICENSE) — Personal project, not affiliated with Meta/Facebook. Third-party dependency licenses and artwork attribution are listed in `THIRD_PARTY_NOTICES.md`.
 
 ## Acknowledgments
 

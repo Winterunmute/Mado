@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Plus, Trash2, Loader2, AlertCircle, Link as LinkIcon, Rss, Youtube, MessageCircle, Tag, Download, Upload, Search, FolderPlus, Sparkles } from 'lucide-react'
+import { Plus, Trash2, Loader2, AlertCircle, Link as LinkIcon, Rss, Youtube, MessageCircle, Tag, Download, Upload, Search, FolderPlus, Sparkles, ExternalLink } from 'lucide-react'
 import { useFeeds, useOrganize } from '../hooks/useStore'
 import { api } from '../lib/api'
 import type { SourceType, ContentType, DiscoveredSource } from '../types'
@@ -27,14 +27,23 @@ export default function FeedManager() {
 
   const sourceOptions: { type: SourceType; label: string; icon: typeof Rss; placeholder: string }[] = [
     { type: 'rss', label: 'RSS / Website', icon: Rss, placeholder: 'https://example.com/feed.xml' },
-    { type: 'youtube', label: 'YouTube Channel', icon: Youtube, placeholder: 'UC… or youtube.com/channel/UC…' },
+    { type: 'youtube', label: 'YouTube Channel', icon: Youtube, placeholder: 'youtube.com/@channel or UC…' },
     { type: 'reddit', label: 'Reddit Community', icon: MessageCircle, placeholder: 'technology or reddit.com/r/technology' },
   ]
   const activeOption = sourceOptions.find(option => option.type === sourceType) || sourceOptions[0]
 
   const validateInput = (value: string): boolean => {
     if (!value.trim()) return false
-    if (sourceType === 'youtube') return /^(UC[\w-]{20,24}|https?:\/\/(?:www\.)?youtube\.com\/(?:channel\/UC[\w-]{20,24}|feeds\/videos\.xml\?channel_id=UC[\w-]{20,24}))$/i.test(value.trim())
+    if (sourceType === 'youtube') {
+      const raw = value.trim()
+      if (/^UC[\w-]{20,24}$/i.test(raw) || /^@[A-Za-z0-9._-]{1,30}$/.test(raw)) return true
+      try {
+        const url = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`)
+        if (!['www.youtube.com', 'youtube.com', 'm.youtube.com'].includes(url.hostname.toLowerCase())) return false
+        return /^\/(?:channel\/UC[\w-]{20,24}|@[A-Za-z0-9._-]{1,30})\/?$/i.test(url.pathname)
+          || (url.pathname === '/feeds/videos.xml' && /^UC[\w-]{20,24}$/i.test(url.searchParams.get('channel_id') || ''))
+      } catch { return false }
+    }
     if (sourceType === 'reddit') return /^(?:\/?r\/)?[A-Za-z0-9_]{1,21}$|https?:\/\/(?:www\.|old\.)?reddit\.com\/r\/[A-Za-z0-9_]{1,21}/i.test(value.trim())
     try { const url = new URL(value); return ['http:', 'https:'].includes(url.protocol) && !url.username && !url.password } catch { return false }
   }
@@ -52,7 +61,9 @@ export default function FeedManager() {
 
     try {
       const result = await addFeed(newFeedUrl.trim(), sourceType)
-      setSuccess(`Added "${result.title || getDomain(result.url)}"`)
+      setSuccess(sourceType === 'reddit'
+        ? `Saved "${result.title || getDomain(result.url)}". Reddit may block feed access; use Open on Reddit if no posts appear.`
+        : `Added "${result.title || getDomain(result.url)}"`)
       setNewFeedUrl('')
     } catch (err: any) {
       setErrors(prev => ({ ...prev, add: err.message || 'Failed to add feed' }))
@@ -402,6 +413,16 @@ export default function FeedManager() {
                       </div>
                     </div>
                     <div className="feed-actions">
+                      {feed.type === 'reddit' && (
+                        <button
+                          className="icon-btn"
+                          onClick={() => void api.shell.openExternal(feed.sourceUrl || `https://www.reddit.com/r/${feed.metadata?.community || ''}/`)}
+                          aria-label={`Open ${feed.title || 'community'} on Reddit`}
+                          title="Open on Reddit"
+                        >
+                          <ExternalLink size={16} aria-hidden="true" />
+                        </button>
+                      )}
                       <button
                         className="icon-btn refresh-btn"
                         onClick={() => handleRefreshFeed(feed.url)}

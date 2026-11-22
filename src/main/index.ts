@@ -8,8 +8,8 @@ import { readFeeds, writeFeeds, readReadState, updateReadState, readSettings, wr
 import { fetchFeed } from './rss.js'
 import { clearSourceCache, fetchSource, fetchSourcesConcurrently } from './sources/index.js'
 import { dedupeContent, isReadInState, sourceId, type SourceType } from './sources/model.js'
-import { resolveYouTubeChannel } from './sources/youtube-adapter.js'
-import { resolveRedditCommunity } from './sources/reddit-adapter.js'
+import { resolveYouTubeChannelAsync } from './sources/youtube-adapter.js'
+import { redditFeedError, resolveRedditCommunity } from './sources/reddit-adapter.js'
 import { discoverSources } from './organize/discovery.js'
 import { parseOpml, buildOpml } from './organize/opml.js'
 import { categoryNameMap } from './organize/categories.js'
@@ -546,11 +546,14 @@ async function getAllArticles(force = false): Promise<any[]> {
       feed.lastFetched = new Date().toISOString()
       feed.lastError = null
     } else if (result?.error && feed.enabled) {
-      feed.lastError = result.error
+      feed.lastError = feed.type === 'reddit' ? redditFeedError(new Error(result.error)) : result.error
     }
   }
   await writeFeeds(latestFeeds)
   if (enabledFeeds.length > 0 && failedFeeds === enabledFeeds.length) {
+    if (enabledFeeds.every(feed => feed.type === 'reddit')) {
+      throw new Error('Reddit is not providing feed data from this network. Your subscriptions were kept; use Open on Reddit or retry later.')
+    }
     throw new Error('Unable to load any enabled sources. Check your connection or source URLs and retry.')
   }
 
@@ -615,7 +618,7 @@ ipcMain.handle('feeds:add', async (_: IpcMainInvokeEvent, input: string, type: S
   let title: string
   let metadata: Record<string, string> = {}
   if (type === 'youtube') {
-    const channel = resolveYouTubeChannel(input)
+    const channel = await resolveYouTubeChannelAsync(input)
     feedUrl = channel.feedUrl
     sourceUrl = channel.channelUrl
     title = channel.channelId
@@ -644,11 +647,19 @@ ipcMain.handle('feeds:add', async (_: IpcMainInvokeEvent, input: string, type: S
     title,
     enabled: true,
     lastFetched: null,
-    lastError: null,
+    lastError: null as string | null,
     metadata,
     categoryIds: [],
   }
-  const items = await fetchSource(newFeed, true)
+  let items: any[] = []
+  if (type === 'reddit') {
+    // Reddit commonly blocks RSS requests (404/429). Keep the subscription and
+    // explain the limitation instead of surfacing a raw IPC exception.
+    try { items = await fetchSource(newFeed, true) }
+    catch (error) { newFeed.lastError = redditFeedError(error) }
+  } else {
+    items = await fetchSource(newFeed, true)
+  }
   if (type === 'rss' && items[0]) newFeed.title = items[0].sourceName || title
   feeds.push(newFeed)
   await writeFeeds(feeds)
@@ -680,9 +691,11 @@ ipcMain.handle('feeds:refresh', async (_: IpcMainInvokeEvent, url?: string) => {
       await writeFeeds(feeds)
       return articles
     } catch (error) {
-      feed.lastError = error instanceof Error ? error.message : 'Could not refresh this source'
+      feed.lastError = feed.type === 'reddit'
+        ? redditFeedError(error)
+        : error instanceof Error ? error.message : 'Could not refresh this source'
       await writeFeeds(feeds)
-      throw error
+      throw new Error(feed.lastError)
     }
   }
   clearSourceCache()

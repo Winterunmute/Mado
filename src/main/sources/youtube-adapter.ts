@@ -1,9 +1,13 @@
 import { extractDescription, fetchRawFeed, mediaUrl, type FeedItem } from '../rss.js'
+import { fetchArticleHtml } from '../reader.js'
 import { sanitizeReaderContent } from '../reader-content.js'
 import { contentId, sourceId, type ContentItem, type SourceSubscription } from './model.js'
 
 const CHANNEL_ID = /^UC[\w-]{20,24}$/
 const YOUTUBE_HOSTS = new Set(['www.youtube.com', 'youtube.com', 'm.youtube.com'])
+const HANDLE = /^@?[A-Za-z0-9._-]{1,30}$/
+
+type ParsedYouTube = { kind: 'id'; channelId: string } | { kind: 'handle'; handle: string }
 
 export interface ResolvedYouTubeChannel {
   channelId: string
@@ -11,28 +15,65 @@ export interface ResolvedYouTubeChannel {
   channelUrl: string
 }
 
-export function resolveYouTubeChannel(input: string): ResolvedYouTubeChannel {
+function parseYouTubeInput(input: string): ParsedYouTube | null {
   const raw = input.trim()
-  const bare = raw.match(CHANNEL_ID)
-  if (bare) return build(bare[0])
+  if (CHANNEL_ID.test(raw)) return { kind: 'id', channelId: raw }
+  if (raw.startsWith('@') && HANDLE.test(raw)) return { kind: 'handle', handle: raw.replace(/^@/, '') }
 
   try {
-    const url = new URL(raw)
-    if (!YOUTUBE_HOSTS.has(url.hostname.toLowerCase())) throw new Error('Enter a YouTube channel URL or channel ID')
-    if (url.hostname.toLowerCase().endsWith('youtube.com') && url.pathname === '/feeds/videos.xml') {
+    const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`
+    const url = new URL(candidate)
+    if (!YOUTUBE_HOSTS.has(url.hostname.toLowerCase())) return null
+    if (url.pathname === '/feeds/videos.xml') {
       const id = url.searchParams.get('channel_id') || ''
-      if (CHANNEL_ID.test(id)) return build(id)
+      if (CHANNEL_ID.test(id)) return { kind: 'id', channelId: id }
+      return null
     }
-    const match = url.pathname.match(/^\/(?:channel\/|embed\/)(UC[\w-]{20,24})/)
-    if (match) return build(match[1])
-    if (/^\/@[^/]+\/?$/.test(url.pathname)) {
-      throw new Error('YouTube @handle URLs cannot be resolved reliably. Use the channel ID or /channel/UC... URL.')
-    }
-  } catch (error) {
-    if (error instanceof Error && error.message.includes('@handle')) throw error
-    throw new Error('Enter a YouTube channel ID or channel URL')
+    const channel = url.pathname.match(/^\/(?:channel|embed)\/(UC[\w-]{20,24})(?:\/|$)/i)
+    if (channel) return { kind: 'id', channelId: channel[1] }
+    const handle = url.pathname.match(/^\/@([A-Za-z0-9._-]{1,30})\/?$/)
+    if (handle) return { kind: 'handle', handle: handle[1] }
+  } catch { /* handled by caller */ }
+  return null
+}
+
+export function normalizeYouTubeInput(input: string): string | null {
+  const parsed = parseYouTubeInput(input)
+  if (!parsed) return null
+  return parsed.kind === 'id' ? `https://www.youtube.com/channel/${parsed.channelId}` : `https://www.youtube.com/@${parsed.handle}`
+}
+
+export function extractYouTubeChannelId(html: string): string | null {
+  const canonical = html.match(/<link[^>]+href=["']([^"']*youtube\.com\/channel\/(UC[\w-]{20,24})[^"']*)["'][^>]*>/i)
+  if (canonical) return canonical[2]
+  const embedded = html.match(/"(?:channelId|externalId)":"(UC[\w-]{20,24})"/)
+  return embedded ? embedded[1] : null
+}
+
+export function resolveYouTubeChannel(input: string): ResolvedYouTubeChannel {
+  const parsed = parseYouTubeInput(input)
+  if (!parsed) throw new Error('Enter a YouTube channel ID, channel URL or @handle')
+  if (parsed.kind === 'handle') {
+    throw new Error('This YouTube handle needs a one-time channel lookup. Please retry.')
   }
-  throw new Error('Enter a valid YouTube channel ID or channel URL')
+  return build(parsed.channelId)
+}
+
+export async function resolveYouTubeChannelAsync(
+  input: string,
+  fetchPage: (url: string) => Promise<{ html: string }> = fetchArticleHtml,
+): Promise<ResolvedYouTubeChannel> {
+  const parsed = parseYouTubeInput(input)
+  if (!parsed) throw new Error('Enter a valid YouTube channel ID, channel URL or @handle')
+  if (parsed.kind === 'id') return build(parsed.channelId)
+  try {
+    const { html } = await fetchPage(`https://www.youtube.com/@${parsed.handle}`)
+    const channelId = extractYouTubeChannelId(html)
+    if (!channelId) throw new Error('not found')
+    return build(channelId)
+  } catch {
+    throw new Error('Could not resolve this YouTube channel right now. Check the handle or try again later.')
+  }
 }
 
 function build(channelId: string): ResolvedYouTubeChannel {
@@ -54,7 +95,7 @@ function thumbnail(item: FeedItem): string | null {
 
 export async function fetchYouTubeChannel(source: SourceSubscription): Promise<ContentItem[]> {
   const feed = await fetchRawFeed(source.url)
-  const channelId = source.metadata?.channelId || resolveYouTubeChannel(source.sourceUrl).channelId
+  const channelId = source.metadata?.channelId || (await resolveYouTubeChannelAsync(source.sourceUrl)).channelId
   return feed.items.map((item): ContentItem => {
     const videoId = item.videoId || (item.link.match(/[?&]v=([\w-]{11})/) || [])[1] || contentId(source, item.link).split(':').pop() || ''
     return {

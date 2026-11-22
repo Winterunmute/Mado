@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag matches package version
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $tag = $env:GITHUB_REF_NAME
+          if ($tag -ne "v$version") { throw "Tag $tag does not match package version $version" }
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Build application
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Package Windows installer
+        run: npm run dist:win
+
+      - name: Verify installer and create checksum
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          $installer = "release/Mado-Setup-$version.exe"
+          if (-not (Test-Path $installer)) { throw "Missing installer: $installer" }
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLower()
+          "$hash  Mado-Setup-$version.exe" | Set-Content -Path SHA256SUMS.txt -Encoding utf8
+          Get-Content SHA256SUMS.txt
+
+      - name: Refuse duplicate release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view $env:GITHUB_REF_NAME 2>$null
+          if ($LASTEXITCODE -eq 0) { throw "Release $env:GITHUB_REF_NAME already exists" }
+
+      - name: Write release notes
+        shell: pwsh
+        run: |
+          $version = node -p "require('./package.json').version"
+          @"
+          ## Mado v$version — Your Window to the World
+
+          Mado is a local-first Windows desktop app for RSS/Atom, YouTube and Reddit feeds, with saved content, categories, custom views, a sanitized in-app reader and optional Facebook Messenger.
+
+          ### Install
+          Download `Mado-Setup-$version.exe` and run the installer. The installer is unsigned by default; Windows SmartScreen may show a warning.
+
+          ### Known limitations
+          Messenger requires a real Facebook login for live use. Reddit RSS access may be blocked or rate-limited by the network. No automatic updates are installed.
+
+          ### Verify the download
+          Compare the installer's SHA-256 with `SHA256SUMS.txt`.
+
+          Mado is independent and unofficial. It is not affiliated with Meta/Facebook, Google/YouTube or Reddit.
+          "@ | Set-Content -Path RELEASE_NOTES.md -Encoding utf8
+
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $version = node -p "require('./package.json').version"
+          $installer = "release/Mado-Setup-$version.exe"
+          gh release create $env:GITHUB_REF_NAME $installer SHA256SUMS.txt `
+            --title "Mado v$version — Your Window to the World" `
+            --notes-file RELEASE_NOTES.md `
+            --verify-tag
+          gh release view $env:GITHUB_REF_NAME --json url,assets

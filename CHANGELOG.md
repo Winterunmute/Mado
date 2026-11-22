@@ -1,8 +1,18 @@
 # Changelog
 
-Historical summary compiled from the version reports and Git history. Entries are intentionally concise; detailed verification results remain in the version reports.
+Historical summary compiled from Git history and consolidated release documentation. Entries are intentionally concise.
 
-## V0.9 — Distribution & Release Preparation (in progress)
+## V1.0 — Public Release
+
+- YouTube `@handle`, scheme-less and `www.youtube.com/@handle` subscriptions resolve to canonical channel IDs through a bounded public-page lookup.
+- Reddit subscriptions degrade gracefully when Reddit blocks RSS with 404/429; provider-specific messages and **Open on Reddit** were added.
+- Official GitHub Releases update source configured.
+- MIT license added, with copyright holder Rickard Borchers.
+- GitHub Actions workflows for Windows build verification and tagged releases.
+- Public repository, release notes, checksum and installer publication.
+- Consolidated architecture, development and release documentation.
+
+## V0.9 — Distribution & Release Preparation
 
 - Windows NSIS installer configuration with Mado product name, version 0.9.0, application icon and Start Menu/desktop shortcuts.
 - Local-only release build script: `npm run dist:win`.

@@ -1,5 +1,5 @@
-// Optional update check. No endpoint is configured in shipped builds; a trusted
-// GitHub Releases API URL can be supplied at build/test time with MADO_RELEASES_API.
+// Update checks use the official public Mado repository. A different trusted
+// GitHub Releases endpoint can be supplied at build/test time with MADO_RELEASES_API.
 
 export interface ReleaseSource {
   apiUrl: string
@@ -16,9 +16,10 @@ export interface UpdateCheckResult {
 }
 
 const RELEASE_API = /^https:\/\/api\.github\.com\/repos\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)\/releases\/latest$/
+const OFFICIAL_RELEASE_API = 'https://api.github.com/repos/Winterunmute/Mado/releases/latest'
 
 export function configuredRelease(): ReleaseSource | null {
-  const raw = process.env.MADO_RELEASES_API?.trim()
+  const raw = process.env.MADO_RELEASES_API?.trim() || OFFICIAL_RELEASE_API
   if (!raw) return null
   const match = RELEASE_API.exec(raw)
   if (!match) return null

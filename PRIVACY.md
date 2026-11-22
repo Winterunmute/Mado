@@ -44,4 +44,4 @@ Uninstalling the Mado application does not automatically delete application data
 
 Remote Messenger content and the local renderer both run with context isolation, sandboxing and Node integration disabled. IPC input is allowlisted and validated. Feed, reader, discovery and OPML URLs are restricted to public HTTP(S) addresses in normal builds. Article HTML is sanitized and unsafe resource schemes are removed.
 
-This document is a draft for public release. It will be reviewed again before V1.0 alongside final distribution and code-signing decisions.
+This statement was reviewed for the V1.0 public release. The installer is currently unsigned; this does not change Mado's local data handling but is documented in the release notes.

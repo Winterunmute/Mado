@@ -10,8 +10,8 @@ import {
 } from '../dist/main/sources/model.js'
 import { clearSourceCache, fetchSource, fetchSourcesConcurrently } from '../dist/main/sources/index.js'
 import { mediaUrl } from '../dist/main/rss.js'
-import { resolveYouTubeChannel } from '../dist/main/sources/youtube-adapter.js'
-import { resolveRedditCommunity } from '../dist/main/sources/reddit-adapter.js'
+import { extractYouTubeChannelId, normalizeYouTubeInput, resolveYouTubeChannel, resolveYouTubeChannelAsync } from '../dist/main/sources/youtube-adapter.js'
+import { redditFeedError, resolveRedditCommunity } from '../dist/main/sources/reddit-adapter.js'
 
 test('legacy subscriptions migrate to stable typed sources', () => {
   const legacy = [
@@ -45,21 +45,34 @@ test('media thumbnails normalize rss-parser object and array shapes', () => {
   assert.equal(mediaUrl(null), null)
 })
 
-test('YouTube input accepts channel ids and canonical URLs only', () => {
+test('YouTube input accepts ids, canonical URLs, scheme-less URLs and handles', async () => {
   const id = 'UCabcdefghijklmnopqrstuv'
   const expected = `https://www.youtube.com/feeds/videos.xml?channel_id=${id}`
-  for (const input of [id, `https://www.youtube.com/channel/${id}`, expected]) {
+  for (const input of [id, `https://www.youtube.com/channel/${id}`, expected, `youtube.com/channel/${id}`, `www.youtube.com/@channel`]) {
+    assert.ok(normalizeYouTubeInput(input), input)
+  }
+  for (const input of [id, `https://www.youtube.com/channel/${id}`, expected, `youtube.com/channel/${id}`]) {
     assert.equal(resolveYouTubeChannel(input).feedUrl, expected)
   }
-  assert.throws(() => resolveYouTubeChannel('https://www.youtube.com/@somehandle'), /cannot be resolved reliably/i)
-  assert.throws(() => resolveYouTubeChannel('https://example.com/channel/UCabcdefghijklmnopqrstuv'), /YouTube/)
+  assert.throws(() => resolveYouTubeChannel('https://example.com/channel/UCabcdefghijklmnopqrstuv'), /YouTube|valid/i)
+
+  const html = `<link rel="canonical" href="https://www.youtube.com/channel/${id}">`
+  assert.equal(extractYouTubeChannelId(html), id)
+  const resolved = await resolveYouTubeChannelAsync('https://www.youtube.com/@TheSergeantSteve', async () => ({ html }))
+  assert.equal(resolved.feedUrl, expected)
+  await assert.rejects(() => resolveYouTubeChannelAsync('youtube.com/@missing', async () => ({ html: '<html></html>' })), /Could not resolve/i)
+  await assert.rejects(() => resolveYouTubeChannelAsync('youtube.com/@offline', async () => { throw new Error('offline') }), /Could not resolve/i)
 })
 
-test('Reddit input accepts community names and URLs', () => {
-  assert.equal(resolveRedditCommunity('technology').feedUrl, 'https://www.reddit.com/r/technology/new/.rss')
-  assert.equal(resolveRedditCommunity('/r/technology').feedUrl, 'https://www.reddit.com/r/technology/new/.rss')
-  assert.equal(resolveRedditCommunity('https://old.reddit.com/r/webdev/').feedUrl, 'https://www.reddit.com/r/webdev/new/.rss')
+test('Reddit input accepts community names and URLs, with provider-specific errors', () => {
+  assert.equal(resolveRedditCommunity('technology').feedUrl, 'https://www.reddit.com/r/technology/.rss')
+  assert.equal(resolveRedditCommunity('/r/technology').feedUrl, 'https://www.reddit.com/r/technology/.rss')
+  assert.equal(resolveRedditCommunity('https://old.reddit.com/r/webdev/').feedUrl, 'https://www.reddit.com/r/webdev/.rss')
   assert.throws(() => resolveRedditCommunity('https://example.com/r/technology'), /subreddit|reddit/i)
+  assert.match(redditFeedError(new Error('Status code 404')), /did not provide a feed/i)
+  assert.match(redditFeedError(new Error('Status code 429')), /rate-limiting/i)
+  assert.match(redditFeedError(new Error('ENOTFOUND www.reddit.com')), /could not be reached/i)
+  assert.match(redditFeedError(new Error('unexpected')), /not providing feed data/i)
 })
 
 test('content ids include source identity and dedupe preserves read state', () => {

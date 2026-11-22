@@ -1,7 +1,9 @@
 {
   "name": "mado",
-  "version": "0.9.0",
-  "description": "Mado (窓) - Your window to the world. A personal desktop app combining RSS feeds and Facebook Messenger.",
+  "version": "1.0.0",
+  "description": "Mado (窓) - Your window to the world. A personal desktop app combining RSS feeds, YouTube, Reddit and Facebook Messenger.",
+  "author": "Rickard Borchers",
+  "license": "MIT",
   "type": "module",
   "main": "dist/main/index.js",
   "scripts": {
@@ -57,7 +59,7 @@
       "!dist/**/*.map"
     ],
     "extraMetadata": {
-      "version": "0.9.0"
+      "version": "1.0.0"
     },
     "win": {
       "target": [
