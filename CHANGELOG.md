@@ -2,6 +2,12 @@
 
 Historical summary compiled from Git history and consolidated release documentation. Entries are intentionally concise.
 
+## V1.0.1 — Messenger Fixes
+
+- Removed the 56px whitespace above Messenger by clearing Facebook's reserved global-header height on Messenger pages only.
+- Fixed conversation tabs by using SPA history navigation instead of full conversation reloads that Facebook redirects to the message list.
+- Serialized tab navigation and synchronized active state with the displayed route.
+
 ## V1.0 — Public Release
 
 - YouTube `@handle`, scheme-less and `www.youtube.com/@handle` subscriptions resolve to canonical channel IDs through a bounded public-page lookup.

@@ -80,7 +80,7 @@ export default function Settings() {
       setUpdateResult({
         configured: true,
         available: false,
-        currentVersion: '1.0.0',
+        currentVersion: '1.0.1',
         latestVersion: null,
         releaseUrl: null,
         message: 'Update check failed.',
@@ -352,7 +352,7 @@ export default function Settings() {
             <div className="about-logo">
               <span>窓</span>
             </div>
-            <h3>Mado v1.0.0</h3>
+            <h3>Mado v1.0.1</h3>
             <p className="about-tagline">Your window to the world.</p>
             <p className="about-desc">
               A personal desktop application combining curated RSS, YouTube and Reddit feeds with Facebook Messenger.

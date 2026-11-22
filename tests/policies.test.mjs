@@ -32,9 +32,16 @@ test('Messenger-only navigation blocks Facebook feed even during authentication'
       assert.equal(classify(`https://www.facebook.com${route}`, landing).kind, 'block')
     }
   }
-  for (const route of ['/messages/', '/messages/t/123', '/login/', '/checkpoint/', '/two_step_verification/']) {
+  for (const route of ['/messages/', '/messages/t/123', '/messages/e2ee/t/abcdefghijklmnop', '/login/', '/checkpoint/', '/two_step_verification/']) {
     assert.equal(classify(`https://www.facebook.com${route}`).kind, 'allow')
   }
+})
+
+test('Messenger tab navigation uses SPA history instead of full conversation reloads', async () => {
+  const source = await fs.readFile(new URL('../src/main/index.ts', import.meta.url), 'utf8')
+  assert.match(source, /history\.pushState/)
+  assert.match(source, /PopStateEvent\('popstate'\)/)
+  assert.doesNotMatch(source, /await messengerView\.webContents\.loadURL\(decision\.url\)/)
 })
 
 test('Messenger redirects, malformed URLs and unsafe schemes cannot escape policy', () => {
@@ -61,7 +68,11 @@ test('Messenger styling uses both palettes without hiding generic conversation n
   assert.match(light, /--divider: #e4e4e7/)
   assert.match(dark, /::-webkit-scrollbar-thumb/)
   assert.match(dark, /role="banner"/)
-  assert.doesNotMatch(dark, /\[role="navigation"\]\s*\{/)
+  assert.doesNotMatch(dark, /\[role="navigation"\]\s*\{[^}]*display:\s*none/)
   assert.doesNotMatch(dark, /role="tablist"/)
   assert.doesNotMatch(dark, /transform:\s*scale|position:\s*fixed\s*!important/)
+  assert.match(dark, /html:has\(\[role="navigation"\]\)\s*\{\s*--header-height:\s*0px/)
+  assert.match(dark, /div:has\(>\s*\[role="navigation"\]\)/)
+  assert.doesNotMatch(dark, /margin[^:]*:\s*-[0-9]/)
+  assert.doesNotMatch(dark, /translateY|transform:\s*translate/)
 })

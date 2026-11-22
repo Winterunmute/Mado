@@ -125,8 +125,10 @@ export default function MessengerPanel() {
     void api.messenger.markSeen()
     try {
       await api.messenger.navigate(tab.url)
-    } catch {
-      setNotice('This conversation link is no longer valid. Use Recover to return to Messages.')
+    } catch (error) {
+      const actual = await api.messenger.getLocation()
+      handleLocation(actual)
+      setNotice(error instanceof Error ? error.message : 'This conversation link is no longer valid. Use Recover.')
     }
   }, [])
 
@@ -155,7 +157,7 @@ export default function MessengerPanel() {
     persist([...tabsRef.current, tab])
     setSelectedId(tab.id)
     void api.messenger.markSeen()
-  }, [location.key, location.url, persist])
+  }, [handleLocation, location.key, location.url, persist])
 
   const togglePin = useCallback((id: string) => {
     persist(tabsRef.current.map(tab => tab.id === id ? { ...tab, pinned: !tab.pinned } : tab))

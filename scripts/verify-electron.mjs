@@ -13,6 +13,13 @@ import assert from 'node:assert/strict'
 import https from 'node:https'
 import { syncBuiltinESMExports } from 'node:module'
 
+// Keep verification windows off the user's active workspace by default.
+const headful = process.env.MADO_VERIFY_HEADFUL === '1'
+if (!headful) {
+  BrowserWindow.prototype.show = function () { return this }
+  BrowserWindow.prototype.focus = function () { return this }
+}
+
 async function run() {
 console.log('Starting isolated Electron verification')
 app.on('browser-window-created', (_event, window) => {
@@ -134,24 +141,20 @@ for (let i = 0; i < 100; i++) {
   if (win && !win.webContents.isLoading()) break
   await delay(100)
 }
-// V0.5 verification is deliberately placed on the secondary/smaller display.
-let verificationDisplay = screen.getPrimaryDisplay()
-if (process.env.MADO_VERIFY_STAGE === 'v05') {
-  const secondary = screen.getAllDisplays()
-    .filter(display => display.id !== screen.getPrimaryDisplay().id)
-    .sort((a, b) => (a.workArea.width * a.workArea.height) - (b.workArea.width * b.workArea.height))[0]
-  verificationDisplay = secondary || verificationDisplay
-  const area = verificationDisplay.workArea
-  if (!process.env.MADO_VERIFY_RESTART) {
-    win.setBounds({
-      x: area.x + 20,
-      y: area.y + 20,
-      width: Math.max(1000, Math.min(1200, area.width - 40)),
-      height: Math.max(700, Math.min(800, area.height - 40)),
-    })
-  }
-  console.log(`Verification display: ${verificationDisplay.id} ${area.width}x${area.height}${secondary ? '' : ' (only display)'}`)
+// All GUI verification is deliberately placed on the smallest available display.
+const displays = screen.getAllDisplays().sort((a, b) =>
+  (a.workArea.width * a.workArea.height) - (b.workArea.width * b.workArea.height))
+const verificationDisplay = displays[0] || screen.getPrimaryDisplay()
+const verificationArea = verificationDisplay.workArea
+if (!process.env.MADO_VERIFY_RESTART) {
+  win.setBounds({
+    x: verificationArea.x + 20,
+    y: verificationArea.y + 20,
+    width: Math.max(1000, Math.min(1200, verificationArea.width - 40)),
+    height: Math.max(700, Math.min(800, verificationArea.height - 40)),
+  })
 }
+console.log(`Verification display: ${verificationDisplay.id} ${verificationArea.width}x${verificationArea.height}`)
 const js = code => win.webContents.executeJavaScript(code, true)
 const wait = async (code) => {
   for (let i = 0; i < 100; i++) {
@@ -164,6 +167,13 @@ const click = selector => js(`document.querySelector(${JSON.stringify(selector)}
 const waitFor = async (probe, label) => {
   for (let i = 0; i < 100; i++) { if (await probe()) return; await delay(100) }
   throw new Error(`Timed out: ${label}`)
+}
+// Screenshot capture can fail on secondary displays; assertions never depend on it.
+const captureWindow = async name => {
+  try { await fs.writeFile(path.join(profile, name), (await win.webContents.capturePage()).toPNG()) } catch { /* optional */ }
+}
+const captureMessenger = async name => {
+  try { await fs.writeFile(path.join(profile, name), (await messenger.webContents.capturePage()).toPNG()) } catch { /* optional */ }
 }
 try {
   if (process.env.MADO_VERIFY_RESTART) {
@@ -186,7 +196,7 @@ try {
   }
   await wait("document.querySelectorAll('.article-card').length === 24")
   await delay(300)
-  await fs.writeFile(path.join(profile, 'feed-dark.png'), (await win.webContents.capturePage()).toPNG())
+  await captureWindow('feed-dark.png')
   check('production renderer renders 24 readable cards and scrolls', await js("document.querySelector('.article-card').clientHeight > 100 && document.querySelector('.feed-container').scrollHeight > document.querySelector('.feed-container').clientHeight"))
   await click('.filter-btn')
   await click('[aria-label="Mark as read"]')
@@ -225,7 +235,7 @@ try {
   await delay(300)
   await click('[aria-label="Settings"]')
   check('Settings can reach its final section at minimum size', await js("(() => { const s=document.querySelector('.settings'); s.scrollTop=s.scrollHeight; return s.scrollTop > 0 && s.getBoundingClientRect().bottom <= innerHeight })()"))
-  await fs.writeFile(path.join(profile, 'settings-minimum.png'), (await win.webContents.capturePage()).toPNG())
+  await captureWindow('settings-minimum.png')
   await js("window.electronAPI.settings.set('messengerWidth', 600)")
   await delay(100)
   // Reload synchronizes a direct IPC preference change with the production React store.
@@ -247,8 +257,7 @@ try {
   await wait("document.querySelector('.messenger-panel').clientWidth === 419")
   const handle = await js("(() => {const r=document.querySelector('.resize-handle').getBoundingClientRect();return {x:Math.round(r.left+3),y:300}})()")
   await js("window.__pointerTrace=[]; for(const type of ['pointerdown','pointermove','pointerup','lostpointercapture']) document.addEventListener(type,e=>window.__pointerTrace.push({type,x:e.clientX,target:e.target.className,buttons:e.buttons}),true)")
-  win.focus()
-  win.webContents.focus()
+  if (headful) { win.focus(); win.webContents.focus() }
   win.webContents.sendInputEvent({ type:'mouseMove', ...handle })
   await delay(100)
   win.webContents.sendInputEvent({ type:'mouseDown', ...handle, button:'left', modifiers:['leftButtonDown'], clickCount:1 })
@@ -269,9 +278,8 @@ try {
   await messenger.webContents.executeJavaScript("history.pushState({}, '', '/')")
   await delay(200)
   check('Facebook SPA home transition recovers to Messenger', new URL(messenger.webContents.getURL()).pathname.startsWith('/messages/'))
-  await fs.writeFile(path.join(profile, 'feed-light.png'), (await win.webContents.capturePage()).toPNG())
-  try { await fs.writeFile(path.join(profile, 'messenger-light.png'), (await messenger.webContents.capturePage()).toPNG()) }
-  catch { /* capture surface can be unavailable in the sandbox; assertions do not depend on it */ }
+  await captureWindow('feed-light.png')
+  await captureMessenger('messenger-light.png')
   if (['v03', 'v04', 'v05', 'v06', 'v07'].includes(process.env.MADO_VERIFY_STAGE)) {
     await click('.filter-btn') // All; exact scroll restoration while the opened article becomes read.
     await wait("document.querySelectorAll('.article-card').length === 24")
@@ -283,7 +291,7 @@ try {
     check('articles open in the main-area reader with clean extracted text', await js("document.querySelector('.feed-container').hidden && document.querySelectorAll('.reader-body h2').length === 20"))
     check('Messenger retains the same native webContents while reading', messenger.webContents.id === messengerId && win.contentView.children.includes(messenger))
     check('long reader scrolls independently and has no scripts or media', await js("document.querySelector('.reader-scroll').scrollHeight > document.querySelector('.reader-scroll').clientHeight && !document.querySelector('.reader-body script, .reader-body video, .reader-body audio, .reader-body iframe') && !window.__readerScript"))
-    await fs.writeFile(path.join(profile, 'reader-light.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('reader-light.png')
     await click('.reader-toolbar button:nth-child(2)')
     check('Open in Browser dispatches the original article through validated shell handler', external.includes('https://example.org/article-4'))
     await click('.reader-toolbar button:first-child')
@@ -292,7 +300,7 @@ try {
     await click('.article-card:nth-child(2) .action-btn.primary')
     await wait("document.querySelector('.reader-notice')?.textContent.includes('full article is unavailable')")
     check('HTTP restriction falls back to RSS content with attribution and browser action', await js("document.querySelector('.reader-body').textContent.includes('readable article summary') && !!document.querySelector('.reader-original')"))
-    await fs.writeFile(path.join(profile, 'reader-fallback.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('reader-fallback.png')
     await click('.reader-toolbar button:first-child')
     await click('.article-card:nth-child(3) .card-title')
     await click('.reader-toolbar button:first-child')
@@ -307,12 +315,12 @@ try {
     await click('[aria-label="Home"]')
     await click('.article-card:nth-child(5) .card-title')
     await wait("!!document.querySelector('.reader-body') && document.documentElement.dataset.theme === 'dark'")
-    await fs.writeFile(path.join(profile, 'reader-dark.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('reader-dark.png')
     check('reader follows the dark palette', await js("getComputedStyle(document.body).backgroundColor === 'rgb(15, 15, 26)'"))
     win.setSize(1000, 700)
     await delay(150)
     check('reader remains within available width at minimum size', await js("document.querySelector('.reader-page').getBoundingClientRect().right <= document.querySelector('.messenger-panel').getBoundingClientRect().left + 1 && document.querySelector('.reader-scroll').scrollHeight > document.querySelector('.reader-scroll').clientHeight"))
-    await fs.writeFile(path.join(profile, 'reader-minimum.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('reader-minimum.png')
     win.setSize(1400, 900)
     await click('[aria-label="Settings"]')
     await click('[role="radio"]:nth-child(2)')
@@ -325,7 +333,7 @@ try {
     await click('[aria-label="Add feed"]')
     await wait("document.querySelectorAll('.feed-item').length === 2 && !!document.querySelector('.toast')")
     check('Sources form adds a real Atom feed with its publisher title', await js("Array.from(document.querySelectorAll('.feed-title-row')).some(e=>e.textContent.includes('Atom Verification'))"))
-    await fs.writeFile(path.join(profile, 'sources.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('sources.png')
     await setUrl(atomUrl)
     await click('[aria-label="Add feed"]')
     await wait("!!document.querySelector('#add-error')")
@@ -376,7 +384,8 @@ try {
     check('selecting a tab switches the existing Messenger webContents', messenger.webContents.id === messengerId && await js("document.querySelectorAll('.conv-tab:not(.chats-tab)')[0].classList.contains('active')"))
     await click('.chats-tab')
     await waitFor(() => new URL(messenger.webContents.getURL()).pathname === '/messages/', 'return to conversation list')
-    check('Chats tab returns to the normal Messenger conversation list', await js("document.querySelector('.chats-tab').getAttribute('aria-selected') === 'true' && document.querySelector('[aria-label=\"Save current conversation\"]').disabled"))
+    await wait("document.querySelector('.chats-tab')?.getAttribute('aria-selected') === 'true'")
+    check('Chats tab returns to the normal Messenger conversation list', await js("document.querySelector('[aria-label=\"Save current conversation\"]').disabled"))
     await clickTabPart(1, '.tab-main')
     await waitFor(() => messenger.webContents.getURL().includes('/messages/t/456/'), 'switch to second tab')
 
@@ -385,14 +394,14 @@ try {
     win.webContents.reload()
     await wait("document.querySelector('.messenger-panel')?.clientWidth === 319")
     check('conversation tabs scroll horizontally at minimum panel width', await js("(() => { const s = document.querySelector('.conv-tab-strip'); return getComputedStyle(s).overflowX === 'auto' && s.scrollWidth >= s.clientWidth && document.querySelectorAll('.conv-tab:not(.chats-tab)').length === 3 })()"))
-    await fs.writeFile(path.join(profile, 'messenger-tabs-narrow.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('messenger-tabs-narrow.png')
 
     await js("window.electronAPI.settings.set('messengerWidth', 600)")
     await delay(100)
     win.webContents.reload()
     await wait("document.querySelector('.messenger-panel')?.clientWidth === 599")
     check('tabs and actions stay inside the wide panel header', await js("(() => { const h = document.querySelector('.panel-header').getBoundingClientRect(); const strip = document.querySelector('.conv-tab-strip').getBoundingClientRect(); const actions = document.querySelector('.header-actions').getBoundingClientRect(); return h.right <= innerWidth + 1 && strip.right <= actions.left + 1 })()"))
-    await fs.writeFile(path.join(profile, 'messenger-tabs-wide.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('messenger-tabs-wide.png')
 
     await clickTabPart(2, '[aria-label^="Close"]')
     await wait("document.querySelectorAll('.conv-tab:not(.chats-tab)').length === 2")
@@ -408,12 +417,12 @@ try {
     const restored = await js(`window.electronAPI.conversationTabs.save(${JSON.stringify(savedBefore)}).then(tabs => tabs.length)`)
     check('invalid saved tab URLs are rejected without losing valid tabs', rejected === 0 && restored === 1 && savedBefore[0].pinned === true)
 
-    await fs.writeFile(path.join(profile, 'messenger-tabs-light.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('messenger-tabs-light.png')
     await click('[aria-label="Settings"]')
     await click('[role="radio"]:first-child')
     await click('[aria-label="Home"]')
     await wait("document.documentElement.dataset.theme === 'dark'")
-    await fs.writeFile(path.join(profile, 'messenger-tabs-dark.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('messenger-tabs-dark.png')
     check('injected Messenger CSS follows the dark Mado palette', await messenger.webContents.executeJavaScript("getComputedStyle(document.body).getPropertyValue('--web-wash').trim() === '#0f0f1a'"))
     await click('[aria-label="Settings"]')
     await click('[role="radio"]:nth-child(2)')
@@ -423,7 +432,7 @@ try {
     win.maximize()
     await delay(300)
     check('maximized layout keeps the tab header above native content', await js("Math.abs(document.querySelector('.panel-header').getBoundingClientRect().bottom - 80) < 1") && messenger.getBounds().y === 80)
-    await fs.writeFile(path.join(profile, 'messenger-maximized.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('messenger-maximized.png')
     win.unmaximize()
     win.setSize(1400, 900)
     await js("window.electronAPI.settings.set('messengerWidth', 420)")
@@ -433,7 +442,7 @@ try {
   }
   if (['v05', 'v06', 'v07'].includes(process.env.MADO_VERIFY_STAGE)) {
     const press = async (keyCode, modifiers = []) => {
-      await win.webContents.focus()
+      if (headful) await win.webContents.focus()
       await win.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers })
       await win.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers })
       await delay(180)
@@ -474,17 +483,17 @@ try {
     await delay(700)
     const savedState = await js('window.electronAPI.desktop.getState()')
     check('window geometry is persisted after a debounced move/resize', Math.abs(savedState.windowState.x - savedBounds.x) <= 2 && Math.abs(savedState.windowState.y - savedBounds.y) <= 2 && savedState.windowState.maximized === false)
-    await fs.writeFile(path.join(profile, 'window-secondary.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('window-secondary.png')
 
     win.maximize()
     await delay(700)
     check('maximized state is persisted', await js("window.electronAPI.desktop.getState().then(s => s.windowState.maximized === true)"))
-    await fs.writeFile(path.join(profile, 'window-maximized.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('window-maximized.png')
 
     await js("window.electronAPI.messenger.markSeen()")
     await js("(() => { window.electronAPI.messenger.onUnreadChanged(() => {}); return true })()")
     check('unread indicator API is available and clear after mark-seen', await js("window.electronAPI.desktop.getState().then(s => s.messengerUnread === false)"))
-    await fs.writeFile(path.join(profile, 'desktop-settings.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('desktop-settings.png')
   }
   if (process.env.MADO_VERIFY_STAGE === 'v06') {
     const icoFrames = name => {
@@ -512,13 +521,13 @@ try {
     await wait("document.querySelectorAll('.article-card').length > 0")
     await wait("document.querySelectorAll('.article-card.content-video').length > 0")
     check('YouTube video appears with a play indicator in the unified feed', await js("!!document.querySelector('.article-card.content-video .play-indicator') && document.querySelector('.article-card.content-video .card-title').textContent.includes('Video One')"))
-    await fs.writeFile(path.join(profile, 'unified-feed-youtube.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('unified-feed-youtube.png')
     await js("window.electronAPI.feeds.add('technology', 'reddit')")
     win.webContents.reload()
     await wait("document.querySelectorAll('.article-card').length > 0")
     await wait("document.querySelectorAll('.article-card.content-post, .article-card.content-image').length > 0")
     check('Reddit post appears in the same chronological feed', await js("!!document.querySelector('.article-card .source-type-badge.reddit, .article-card.content-post, .article-card.content-image')"))
-    await fs.writeFile(path.join(profile, 'unified-feed-mixed.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('unified-feed-mixed.png')
 
     await js("(() => { const s=document.querySelector('[aria-label=\"Filter by source type\"]'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype,'value').set.call(s,'youtube'); s.dispatchEvent(new Event('change',{bubbles:true})); return true })()")
     await wait("document.querySelectorAll('.article-card').length === 1 && !!document.querySelector('.article-card.content-video')")
@@ -530,14 +539,14 @@ try {
     await click('.article-card.content-video .card-title')
     await wait("!!document.querySelector('.video-view')")
     check('video item opens a user-initiated viewer with no embedded player', await js("!!document.querySelector('.video-view button') && !document.querySelector('iframe, video') && document.documentElement.dataset.theme === 'light'"))
-    await fs.writeFile(path.join(profile, 'video-reader.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('video-reader.png')
     await click('.reader-toolbar button:first-child')
     await wait("!document.querySelector('.article-reader')")
     check('Back to Feed keeps the unified feed scroll position', await js(`document.querySelector('.feed-container').scrollTop === ${unifiedScroll}`))
     await click('.article-card.content-post .card-title, .article-card.content-image .card-title')
     await wait("!!document.querySelector('.reader-discussion')")
     check('Reddit post shows supplied text and an explicit discussion action', await js("document.querySelector('.reader-body').textContent.includes('controlled Reddit post body') && document.querySelector('.reader-discussion').textContent.includes('View Discussion')"))
-    await fs.writeFile(path.join(profile, 'reddit-reader.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('reddit-reader.png')
     await click('.reader-toolbar button:first-child')
 
     await js('window.electronAPI.app.reset()')
@@ -573,7 +582,7 @@ try {
     await click('[aria-label="Sources"]')
     await wait("!!document.querySelector('.organize-section')")
     check('Sources exposes categories, custom feeds and OPML actions', await js("!!document.querySelector('[aria-label=\"New category name\"]') && !!document.querySelector('[aria-label=\"New feed name\"]') && !!document.querySelector('[aria-label=\"Import OPML\"]') && !!document.querySelector('[aria-label=\"Export OPML\"]')"))
-    await fs.writeFile(path.join(profile, 'v07-sources.png'), (await win.webContents.capturePage()).toPNG())
+    await captureWindow('v07-sources.png')
     await click('[aria-label="Home"]')
     await wait("!!document.querySelector('.feed-area')")
     await click('[aria-label="Advanced filters"]')

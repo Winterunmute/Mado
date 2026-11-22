@@ -18,7 +18,7 @@ import {
   isMessengerAuthenticationUrl,
   isMessengerContentUrl,
 } from './messenger-navigation.js'
-import { locationFromUrl, type MessengerLocation } from './conversation-tabs.js'
+import { conversationKeyFromUrl, locationFromUrl, type MessengerLocation } from './conversation-tabs.js'
 import { DEFAULT_WINDOW_STATE, resolveWindowBounds, stateFromBounds, type WindowState } from './window-state.js'
 import { actionForInput } from './shortcuts.js'
 import { shouldShowUnreadNotification, unreadCountFromTitle } from './notification-policy.js'
@@ -39,6 +39,8 @@ let messengerWidth = 420
 let hasReachedMessenger = false
 let messengerAuthenticationInProgress = false
 let messengerLoaded = false
+let messengerNavigationQueue: Promise<void> = Promise.resolve()
+let messengerNavigationBusy = 0
 let windowState: WindowState | null = null
 let isQuitting = false
 let windowStateTimer: NodeJS.Timeout | null = null
@@ -100,6 +102,7 @@ function currentMessengerLocation(): MessengerLocation {
 }
 
 function publishMessengerLocation() {
+  if (messengerNavigationBusy > 0) return
   mainWindow?.webContents.send('messenger-location-changed', currentMessengerLocation())
 }
 
@@ -510,6 +513,41 @@ function recoverFromUnexpectedMessengerNavigation(rawUrl: string) {
   loadMessenger()
 }
 
+// Facebook's current Messenger UI is an SPA. A full loadURL() of a conversation
+// route redirects back to /messages/, so switch routes with History API instead.
+async function navigateMessengerInPage(rawUrl: string): Promise<void> {
+  if (!messengerView || messengerView.webContents.isDestroyed()) {
+    throw new Error('Messenger is not available yet')
+  }
+  const webContents = messengerView.webContents
+  const expectedKey = conversationKeyFromUrl(rawUrl)
+  if (!isMessengerContentUrl(webContents.getURL())) {
+    await webContents.loadURL(rawUrl)
+    return
+  }
+  const script = `history.pushState({}, '', ${JSON.stringify(rawUrl)}); window.dispatchEvent(new PopStateEvent('popstate')); location.href`
+  await webContents.executeJavaScript(script, true)
+  await new Promise(resolve => setTimeout(resolve, 250))
+  const actual = webContents.getURL()
+  if (expectedKey && conversationKeyFromUrl(actual) !== expectedKey) {
+    throw new Error('Messenger returned to the conversation list. Use Recover to return to Messages.')
+  }
+}
+
+async function navigateMessengerQueued(rawUrl: string): Promise<void> {
+  const operation = messengerNavigationQueue.then(async () => {
+    messengerNavigationBusy += 1
+    try {
+      await navigateMessengerInPage(rawUrl)
+    } finally {
+      messengerNavigationBusy -= 1
+      publishMessengerLocation()
+    }
+  })
+  messengerNavigationQueue = operation.catch(() => {})
+  return operation
+}
+
 async function getAllArticles(force = false): Promise<any[]> {
   const feeds = await readFeeds()
   const enabledFeeds = feeds.filter(feed => feed.enabled)
@@ -799,11 +837,7 @@ ipcMain.handle('messenger:navigate', async (_: IpcMainInvokeEvent, rawUrl: strin
   if (decision.kind !== 'allow' || !isMessengerContentUrl(decision.url)) {
     throw new Error('Only Messenger conversation pages can be opened in Mado')
   }
-  if (!messengerView || messengerView.webContents.isDestroyed()) {
-    throw new Error('Messenger is not available yet')
-  }
-  await messengerView.webContents.loadURL(decision.url)
-  publishMessengerLocation()
+  await navigateMessengerQueued(decision.url)
 })
 
 ipcMain.handle('messenger-tabs:get', async () => readConversationTabs())

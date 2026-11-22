@@ -150,7 +150,7 @@ export default function Sidebar({ activeView, onViewChange }: { activeView: View
       )}
 
       <div className="sidebar-footer">
-        {!collapsed && <span className="version">v1.0.0</span>}
+        {!collapsed && <span className="version">v1.0.1</span>}
       </div>
     </aside>
   )

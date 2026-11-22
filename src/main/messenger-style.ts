@@ -40,5 +40,18 @@ export function messengerStyle(theme: 'light' | 'dark'): string {
     [role="banner"]:has(a[href="/"]),
     [role="banner"]:has(a[href="https://www.facebook.com/"]),
     [role="navigation"][aria-label="Facebook"] { display: none !important; }
+
+    /* The hidden global banner still leaves a 56px reservation in Facebook's
+       --header-height variable. On the current Messenger shell this pushes the
+       conversation list down. Scope the correction to pages that actually have
+       the Messenger conversation-list navigation, so login/error pages keep
+       Facebook's own layout. */
+    html:has([role="navigation"]) { --header-height: 0px !important; }
+    div:has(> [role="navigation"]) { height: 100vh !important; max-height: 100vh !important; }
+    div:has(> [role="navigation"]) > [role="navigation"] {
+      margin-top: 16px !important;
+      height: calc(100% - 16px) !important;
+      max-height: calc(100% - 16px) !important;
+    }
   `
 }

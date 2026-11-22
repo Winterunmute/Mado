@@ -5,7 +5,7 @@ A personal desktop application combining a unified, personally curated feed (RSS
 ## Download for Windows
 
 - [Latest GitHub Release](https://github.com/Winterunmute/Mado/releases/latest)
-- [Mado Setup 1.0.0.exe](https://github.com/Winterunmute/Mado/releases/download/v1.0.0/Mado-Setup-1.0.0.exe)
+- [Mado Setup 1.0.1.exe](https://github.com/Winterunmute/Mado/releases/download/v1.0.1/Mado-Setup-1.0.1.exe)
 
 The installer is unsigned by default; Windows SmartScreen may show a warning. Verify the SHA-256 in `SHA256SUMS.txt` on the release page.
 
@@ -55,7 +55,7 @@ npm install
 npm run dist:win
 ```
 
-The installer is written to `release/Mado-Setup-1.0.0.exe`. It installs per user, creates Start Menu and optional desktop shortcuts, and deliberately keeps application data under `%APPDATA%\\Mado` on uninstall. This build is not code-signed; Windows SmartScreen may warn until a trusted signing strategy is in place.
+The installer is written to `release/Mado-Setup-1.0.1.exe`. It installs per user, creates Start Menu and optional desktop shortcuts, and deliberately keeps application data under `%APPDATA%\\Mado` on uninstall. This build is not code-signed; Windows SmartScreen may warn until a trusted signing strategy is in place.
 
 ### Prerequisites
 
@@ -279,7 +279,7 @@ Access via the **Settings** sidebar item:
 npm run dist:win
 ```
 
-Output: `release/Mado-Setup-1.0.0.exe`. The package contains only compiled application files and runtime dependencies; reports, tests, verification profiles and Git data are excluded. See `RELEASE_CHECKLIST.md` for ongoing signing and publication gates.
+Output: `release/Mado-Setup-1.0.1.exe`. The package contains only compiled application files and runtime dependencies; reports, tests, verification profiles and Git data are excluded. See `RELEASE_CHECKLIST.md` for ongoing signing and publication gates.
 
 ## Troubleshooting
 
