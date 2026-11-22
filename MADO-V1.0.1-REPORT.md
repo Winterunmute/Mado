@@ -1,4 +1,4 @@
-# Mado V1.0.1 — Messenger Fixes (unreleased)
+# Mado V1.0.1 — Messenger Fixes (published)
 
 ## Confirmed root causes
 
@@ -18,8 +18,8 @@ Facebook's current Messenger UI uses SPA routes such as `/messages/e2ee/t/<id>/`
 - `tests/conversation-tabs.test.mjs` — encrypted-route key/tab coverage.
 - `tests/policies.test.mjs` — classifier and SPA-navigation assertions.
 - `scripts/verify-electron.mjs` — use the smallest display and keep verification windows hidden/unfocused by default so runs do not interrupt the user's game.
-- `package.json`, `package-lock.json`, Sidebar/Settings — version 1.0.1.
-- `CHANGELOG.md`, this report.
+- `package.json`, `package-lock.json`, Sidebar/Settings — version 1.0.1 and installer metadata.
+- `README.md`, `CHANGELOG.md`, `.github/workflows/release.yml`, this report.
 
 ## Navigation behavior
 
@@ -62,4 +62,12 @@ The user should confirm with real conversations:
 
 ## Limitations
 
-Facebook can change SPA routes or CSS at any time. The fix is scoped to current Messenger structure with semantic role-based selectors; no broad DOM rewrite or private API is used. V1.0.1 is not published; no tag or push was created.
+Facebook can change SPA routes or CSS at any time. The fix is scoped to current Messenger structure with semantic role-based selectors; no broad DOM rewrite or private API is used.
+
+## Publication
+
+- Commit: `6fdc4ed` on `main`; tag: `v1.0.1`.
+- Release: https://github.com/Winterunmute/Mado/releases/tag/v1.0.1
+- Installer: https://github.com/Winterunmute/Mado/releases/download/v1.0.1/Mado-Setup-1.0.1.exe
+- Installer SHA-256: `44520ae24d9ebc9fd0fa3b0e5d013306bd57899be7c91eb0ffcd29f6adae0989` (matches the release asset digest).
+- The tagged release workflow failed at its duplicate-release guard because PowerShell returned `gh release view`'s non-zero exit code; the release and checksum were published manually from the locally verified installer. The workflow guard was corrected in a follow-up commit.
