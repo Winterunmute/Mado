@@ -70,15 +70,17 @@ The first combined GUI run hit a transient `UnknownVizError` in V0.3/V0.4; both 
 
 ## 9. Repository and release publication
 
-- Repository: https://github.com/Winterunmute/Mado
-- Intended final visibility: public
+- Repository: https://github.com/Winterunmute/Mado — **public**, verified publicly readable without authentication.
+- Description: Mado — Your window to the world. A personal content reader with integrated Messenger.
+- Release: https://github.com/Winterunmute/Mado/releases/tag/v1.0.0
 - Release tag: `v1.0.0`
-- Release title: `Mado v1.0.0 — Your Window to the World`
 - Installer URL: https://github.com/Winterunmute/Mado/releases/download/v1.0.0/Mado-Setup-1.0.0.exe
+- Downloaded installer SHA-256 matched `SHA256SUMS.txt` exactly.
+- The initial tagged Release workflow failed at packaging because electron-builder attempted implicit tag publishing and no `GH_TOKEN` was present. This was fixed on `main` by adding `--publish never` to `dist:win`; the V1.0 release was published manually from the verified local artifact and checksum. Future tags use the corrected workflow and will not perform implicit publishing.
 
 ## 10. Update-check integration
 
-The app now checks `https://api.github.com/repos/Winterunmute/Mado/releases/latest` and links to `https://github.com/Winterunmute/Mado/releases/latest`. It compares stable versions and never downloads or installs executables. Before the release existed, the live check correctly reported the missing release; after publication, it should report Mado 1.0.0 as up to date.
+The app now checks `https://api.github.com/repos/Winterunmute/Mado/releases/latest` and links to `https://github.com/Winterunmute/Mado/releases/latest`. It compares stable versions and never downloads or installs executables. Live post-publication check returned: `Mado 1.0.0 is up to date.`
 
 ## 11. Manual verification still required
 

@@ -18,7 +18,7 @@ The installer is unsigned by default; Windows SmartScreen may show a warning. Ve
 - **Advanced Filters**: combine All/Unread/Saved, category, source type, source, content type, search and date range, with Today/7-day/30-day presets
 - **Saved Sorting**: sort Saved items by newest, oldest or title; large feeds render incrementally
 - **First-Run Guide**: brief introduction to Your Feed, Your Messenger and Your Rules; skippable and reopenable from Settings
-- **Safe Update Check**: shows the installed version and reports when no trusted release source is configured; never auto-installs
+- **Safe Update Check**: checks the official GitHub Releases source, shows newer versions and opens the release page; never auto-installs
 - **OPML**: import/export RSS subscriptions with folder/category information and duplicate reporting
 - **Source Discovery**: find advertised RSS/Atom feeds from a website URL; platform URLs route to existing adapters
 - **Source Adapters**: Extensible local adapters for RSS/Atom, YouTube channels and Reddit communities
@@ -48,7 +48,7 @@ The installer is unsigned by default; Windows SmartScreen may show a warning. Ve
 
 ## Quick Start
 
-### Windows installer (V0.9 release candidate)
+### Windows installer (V1.0)
 
 ```bash
 npm install
@@ -182,7 +182,7 @@ You can add/remove RSS feeds, YouTube channels and Reddit communities via the **
 The Feed view combines all enabled sources in chronological order. It never recommends, ranks or engages-optimizes content; you decide what to follow.
 
 - **RSS / Atom:** full feed URL. Existing subscriptions and read history migrate automatically.
-- **YouTube:** canonical channel ID (`UC...`), `youtube.com/channel/UC...`, or the public `feeds/videos.xml?channel_id=...` URL. `@handle` URLs are not accepted because they cannot be resolved reliably.
+- **YouTube:** canonical channel ID (`UC...`), `youtube.com/channel/UC...`, public feed URL, or ordinary `youtube.com/@handle` URLs. Handles are resolved to canonical channel IDs through a bounded public-page lookup.
 - **Reddit:** subreddit name, `/r/name`, or a reddit.com/old.reddit.com community URL. Public feed access can be rate-limited or blocked by Reddit depending on network and policy.
 
 Use the source-type and source selectors in the feed header to narrow the combined feed, alongside the existing All/Unread and search controls. Videos show a play indicator and open a user-initiated **Watch on YouTube** action; Reddit posts show supplied text and **View Discussion on Reddit**. Mado does not autoplay embedded video.
@@ -227,14 +227,14 @@ Conversation tabs are local shortcuts that navigate one shared Messenger session
 - Source discovery is bounded and reads advertised feeds only; it is not a general crawler
 - Saved items keep feed metadata, not full offline articles or videos
 - Facebook may block embedding or require login challenges
-- YouTube `@handle` URLs are rejected; use a canonical channel ID or channel URL
+- YouTube handle resolution depends on YouTube's public channel page exposing a canonical ID
 - Reddit public feeds may return 404/429 from some networks; Mado shows the source error and keeps the last successful fetch
 - Conversation labels are generated from the URL until you rename them; Facebook routes may change
 - Some Messenger features (voice/video calls, certain reactions) may not work
 - If embedding fails, use "Open in Browser" button as fallback
 - Login state persists in the `persist:messenger` partition
-- The V0.9 installer is local-only and unsigned; SmartScreen and clean-machine installation require manual verification
-- No official update endpoint is configured, so Check for Updates reports unavailable
+- The installer is unsigned; SmartScreen warnings are expected until code signing is configured
+- Reddit RSS access may be blocked or rate-limited; Mado keeps the subscription and offers Open on Reddit
 
 ## Settings
 
@@ -253,7 +253,7 @@ Access via the **Settings** sidebar item:
 | Tray / Close to tray / Start minimized | Desktop options (off by default) |
 | Messenger activity alerts | On / Off (no message previews) |
 | Keyboard shortcuts | Reference list in Settings |
-| Check for Updates | Reports that no official release source is configured in this build |
+| Check for Updates | Checks the official GitHub Releases source; never installs automatically |
 | Reopen welcome guide | Shows the first-run introduction again |
 
 ## Data & Privacy
